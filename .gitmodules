@@ -1,0 +1,7 @@
+[submodule "godot-cpp"]
+	path = godot-cpp
+	url = https://github.com/godotengine/godot-cpp.git
+	branch = 4.6
+[submodule "godot-sqlite"]
+	path = godot-sqlite
+	url = https://github.com/2shady4u/godot-sqlite.git

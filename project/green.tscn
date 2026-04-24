@@ -1,0 +1,16 @@
+[gd_scene format=3 uid="uid://2ecw1a1hca0g"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_41tgm"]
+albedo_color = Color(0.011959192, 0.48516214, 1.0588765e-06, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_8txms"]
+material = SubResource("StandardMaterial3D_41tgm")
+size = Vector3(5.355, 0.03, 5.34)
+
+[node name="Node3D" type="Node3D" unique_id=1348946212]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1214047945]
+mesh = SubResource("BoxMesh_8txms")
+
+[node name="StreamObject" type="StreamObject" parent="." unique_id=1696616107]
+aabb_objects = Array[NodePath]([NodePath("../MeshInstance3D")])

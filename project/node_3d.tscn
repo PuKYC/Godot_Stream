@@ -1,0 +1,21 @@
+[gd_scene format=3 uid="uid://bx7k6wka5el6q"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_4xowi"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_a202f"]
+
+[node name="Node3D" type="Node3D" unique_id=282951102]
+
+[node name="Node3D" type="Node3D" parent="." unique_id=1059548619]
+transform = Transform3D(0.6286434, -0.6498208, -0.4272475, 0.61538327, 0.07973859, 0.7841845, -0.47551137, -0.75589323, 0.450016, 0, 0, 0)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Node3D" unique_id=198016076]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.4708215, 0, 0)
+mesh = SubResource("BoxMesh_4xowi")
+
+[node name="MeshInstance3D2" type="MeshInstance3D" parent="." unique_id=1090640765]
+transform = Transform3D(0.99999994, 2.9802322e-08, -4.4703484e-08, 2.9802322e-08, 0.70898014, -0.7052283, -1.4901161e-08, 0.70522827, 0.70898026, -1.9030827, -5.9604645e-08, 8.940697e-08)
+mesh = SubResource("BoxMesh_a202f")
+
+[node name="StreamObject" type="StreamObject" parent="." unique_id=1632060933]
+aabb_objects = Array[NodePath]([NodePath("../Node3D/MeshInstance3D"), NodePath("../MeshInstance3D2")])
