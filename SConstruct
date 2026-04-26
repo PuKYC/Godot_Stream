@@ -78,14 +78,11 @@ env.Append(CPPDEFINES=["SQLITE_ENABLE_RTREE"])
 
 sources = []
 sources += Glob("src/*.cpp")
-sources += Glob("src/stream/*.cpp")
+sources += Glob("src/core/stream/*.cpp")
 
-sources += Glob("src/sqlitedb/*.cpp")
-sources += Glob("src/ulid/*.cpp")
-
-sources += Glob("src/godot_sqlite/*.cpp") 
-sources += Glob("src/godot_sqlite/sqlite/*.c")
-sources += Glob("src/godot_sqlite/vfs/*.cpp")
+sources += Glob("godot_sqlite/src/*.cpp") 
+sources += Glob("godot_sqlite/src/sqlite/*.c")
+sources += Glob("godot_sqlite/src/vfs/*.cpp")
 
 if env['platform'] == 'android':
     darwin_flags = ['-Wl,-dead_strip', '-dead_strip_dylibs', '-no_warn_duplicate_libraries', '-dynamic', '-dylib']
