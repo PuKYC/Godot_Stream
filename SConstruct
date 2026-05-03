@@ -16,7 +16,7 @@ libname = "StreamWorld"
 projectdir = "project"
 
 localEnv = Environment(tools=["default"], PLATFORM="")
-localEnv.Append(CCFLAGS=['-std=c++20'])
+localEnv.Append(CCFLAGS=['-std=c++20', '-DLIBUUID_CPP20_OR_GREATER'])
 
 # Build profiles can be used to decrease compile times.
 # You can either specify "disabled_classes", OR
@@ -87,9 +87,10 @@ sources += Glob("gdsqlite/*.cpp")
 sources += Glob("gdsqlite/sqlite/*.c")
 sources += Glob("gdsqlite/vfs/*.cpp")
 
+# 第三方代码包含异常但必须使用
+env.Append(CXXFLAGS=['-fexceptions'])
+
 if env['platform'] == 'android':
-    env.Append(CXXFLAGS=['-fexceptions'])
-    
     darwin_flags = ['-Wl,-dead_strip', '-dead_strip_dylibs', '-no_warn_duplicate_libraries', '-dynamic', '-dylib']
 
     for flag in darwin_flags:
