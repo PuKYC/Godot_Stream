@@ -93,6 +93,8 @@ sources += Glob("godot-sqlite/src/sqlite/*.c")
 sources += Glob("godot-sqlite/src/vfs/*.cpp")
 
 if env['platform'] == 'android':
+    env.Append(CXXFLAGS=['-fexceptions'])
+    
     darwin_flags = ['-Wl,-dead_strip', '-dead_strip_dylibs', '-no_warn_duplicate_libraries', '-dynamic', '-dylib']
 
     for flag in darwin_flags:

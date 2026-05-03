@@ -22,8 +22,8 @@ public:
 	// 禁止拷贝，允许移动
 	ObjectSceneCache(const ObjectSceneCache &) = delete;
 	ObjectSceneCache &operator=(const ObjectSceneCache &) = delete;
-	ObjectSceneCache(ObjectSceneCache &&) = default;
-	ObjectSceneCache &operator=(ObjectSceneCache &&) = default;
+	ObjectSceneCache(ObjectSceneCache &&) = delete;
+	ObjectSceneCache &operator=(ObjectSceneCache &&) = delete;
 
 	// 非阻塞
 	// 获取可挂载节点。若所需资源仍在异步加载中，返回 nullptr。

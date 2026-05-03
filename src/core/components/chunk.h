@@ -57,12 +57,4 @@ namespace std {
 			return seed;
 		}
 	};
-
-	template <>
-	struct hash<unsigned __int128> {
-		size_t operator()(unsigned __int128 val) const noexcept {
-			// 组合高低64位，简单但足够
-			return static_cast<size_t>(val) ^ static_cast<size_t>(val >> 64);
-		}
-	};
 } //namespace std
