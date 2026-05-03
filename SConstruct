@@ -75,10 +75,10 @@ for opt in options:
 env.Append(CPPPATH=[
     "src", 
     "src/stduuid/include", 
-    "godot-sqlist/",
-    "godot-sqlist/src",
-    "godot-sqlist/src/vfs",
-    "godot-sqlist/src/sqlite",
+    "godot-sqlite/",
+    "godot-sqlite/src",
+    "godot-sqlite/src/vfs",
+    "godot-sqlite/src/sqlite",
 ]) 
 
 # 强制编译 sqlite_rtree 模块
