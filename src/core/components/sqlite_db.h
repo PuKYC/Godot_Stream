@@ -65,7 +65,7 @@ public:
 		void bind_int(int idx, int val);
 		void bind_text(int idx, const std::string &val);
 		void bind_double(int idx, double val);
-		void bind_blob(int idx, const void *val, size_t size);
+		void bind_blob(int idx, const void *val, uint size);
 		void bind_null(int idx);
 
 		bool step();
