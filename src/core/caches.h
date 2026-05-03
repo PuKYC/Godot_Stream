@@ -1,7 +1,7 @@
 #pragma once
 
-#include "cpp_caches/cache.hpp"
-#include "cpp_caches/lru_cache_policy.hpp"
+#include "caches/cache.hpp"
+#include "caches/lru_cache_policy.hpp"
 #include "ankerl/unordered_dense.h"
 
 // 缓存类型定义
