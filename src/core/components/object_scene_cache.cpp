@@ -4,11 +4,11 @@
 using namespace godot;
 
 ObjectSceneCache::ObjectSceneCache(size_t scene_cap, size_t node_cap) :
-		node_cache_(node_cap),
+		node_cache_(node_cap, [](uuids::uuid uuid, Node *node) { evict_node(node); }),
 		scene_cache_(scene_cap),
 {
-	node_cache_max = node_cap;
-	scene_cache_max = scene_cap;
+	node_cache_capacity = node_cap;
+	scene_cache_capacity = scene_cap;
 	node_evict_ = [](Node *node) {
 		if (node)
 			node->queue_free();
@@ -29,11 +29,11 @@ void ObjectSceneCache::clear() {
 }
 
 void ObjectSceneCache::clear_nodes() {
-	node_cache_ = lru_cache_t<String, Node *>(node_cache_max);
+	node_cache_ = lru_cache_t<String, Node *>(node_cache_capacity, [](uuids::uuid uuid, Node *node) { evict_node(node); });
 }
 
 void ObjectSceneCache::clear_scenes() {
-	scene_cache_ = lru_cache_t<String, Ref<PackedScene>>(scene_cache_max);
+	scene_cache_ = lru_cache_t<String, Ref<PackedScene>>(scene_cache_capacity);
 }
 
 size_t ObjectSceneCache::node_cache_size() const noexcept {
@@ -44,12 +44,12 @@ size_t ObjectSceneCache::scene_cache_size() const noexcept {
 	return scene_cache_.Size();
 }
 
-Node *ObjectSceneCache::acquire(const String &uuid, const String &scene_path) {
+Node *ObjectSceneCache::acquire(const uuids::uuid &uuid, const String &scene_path) {
 	// 1. 节点缓存优先
-	if (node_cache_.Cached(uuid)) {
-		Node *node = node_cache_.Get(uuid); // 解引用获取Node*
-		node_cache_.Remove(uuid);
-		return node;
+	auto result = node_cache_.TryGet(uuid); // 返回 std::pair<Node*, bool>
+	if (result.second) { // 如果找到了节点
+		node_cache_.Remove(uuid); // 从缓存中移除
+		return result.first; // 返回节点指针
 	}
 
 	// 2. 场景资源缓存命中
@@ -63,17 +63,17 @@ Node *ObjectSceneCache::acquire(const String &uuid, const String &scene_path) {
 	return nullptr;
 }
 
-void ObjectSceneCache::release(const String &uuid, Node *node) {
+void ObjectSceneCache::release(const uuids::uuid &uuid, Node *node) {
 	if (!node)
 		return;
-	if (auto old = node_cache_.Get(uuid)) {
+	if (auto old = node_cache_.TryTryGet(uuid)) {
 		evict_node(old.value());
 	}
 	node_cache_.Put(uuid, node);
 }
 
 // 异步加载管理
-void ObjectSceneCache::request_scene(const String &uuid, const String &scene_path) {
+void ObjectSceneCache::request_scene(const uuids::uuid &uuid, const String &scene_path) {
 	// 已缓存或正在加载则忽略
 	if (get_scene(uuid).is_valid() || loading_set_.count(uuid)) {
 		return;
@@ -116,20 +116,20 @@ void ObjectSceneCache::update() {
 	}
 }
 
-bool ObjectSceneCache::is_loading(const String &uuid) const {
+bool ObjectSceneCache::is_loading(const uuids::uuid &uuid) const {
 	return loading_set_.count(uuid);
 }
 
 // 场景资源缓存手动控制
-void ObjectSceneCache::store_scene(const String &uuid, const Ref<PackedScene> &scene) {
+void ObjectSceneCache::store_scene(const uuids::uuid &uuid, const Ref<PackedScene> &scene) {
 	scene_cache_.Put(uuid, scene);
 }
 
-Ref<PackedScene> ObjectSceneCache::get_scene(const String &uuid) const {
-	return scene_cache_.Get(uuid);
+Ref<PackedScene> ObjectSceneCache::get_scene(const uuids::uuid &uuid) const {
+	return scene_cache_.TryGet(uuid);
 }
 
-void ObjectSceneCache::remove_scene(const String &uuid) {
+void ObjectSceneCache::remove_scene(const uuids::uuid &uuid) {
 	scene_cache_.Remove(uuid);
 }
 

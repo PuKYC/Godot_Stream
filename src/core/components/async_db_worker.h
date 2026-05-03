@@ -1,47 +1,46 @@
 #pragma once
 
 #include <godot_cpp/classes/ref_counted.hpp>
-#include <godot_cpp/templates/vector.hpp>
+#include <godot_cpp/variant/string.hpp>
 #include <atomic>
-#include <functional>
-#include <mutex>
 #include <condition_variable>
-#include <thread>
+#include <functional>
+#include <memory>
+#include <mutex>
 #include <queue>
+#include <thread>
 
-#include "godot-sqlist/src/sqlite/sqlite3.h"
+#include "stream_sqlite_db.h"
 
-using namespace godot;
-
-class AsyncDbWorker : public RefCounted {
-    GDCLASS(AsyncDbWorker, RefCounted)
+class AsyncDbWorker : public godot::RefCounted {
+    GDCLASS(AsyncDbWorker, godot::RefCounted)
 
 public:
-    using Callback = std::function<void()>; // 主线程回调
-
-    // 任务：在后台执行的函数 + 完成后在主线程调用的回调
+    // 任务定义：work 在后台线程执行，on_complete 在主线程执行
     struct Task {
-        std::function<void(sqlite3&)> work; // 参数是 SQLite 实例（注意线程安全）
-        Callback on_complete;
+        std::function<void(StreamSqliteDB&)> work;
+        std::function<void()> on_complete;
     };
 
-    AsyncDbWorker(const String& db_path);
+    AsyncDbWorker(const godot::String& db_path);
     ~AsyncDbWorker();
 
-    // 提交异步任务（主线程调用）
+    // 主线程调用，投递任务
     void push_task(Task task);
 
-    // 处理已完成任务的主线程回调（需在 _process 或 _physics_process 中调用）
+    // 主线程调用（通常在 _process 中），执行已完成回调
     void flush_callbacks();
 
 private:
     void thread_loop();
 
-    std::thread worker;
-    std::queue<Task> task_queue;
-    std::queue<Callback> completed_callbacks;
-    std::mutex queue_mutex;
-    std::condition_variable cv;
-    std::atomic<bool> stop {false};
+    std::unique_ptr<StreamSqliteDB> db_;               // 工作线程独享
+    std::thread worker_;
 
+    std::queue<Task> task_queue_;
+    std::queue<std::function<void()>> completed_callbacks_;
+    
+    std::mutex queue_mutex_;
+    std::condition_variable cv_;
+    std::atomic<bool> stop_{false};
 };

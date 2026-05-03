@@ -8,9 +8,9 @@
 [submodule "src/stduuid"]
 	path = src/stduuid
 	url = https://github.com/mariusbancila/stduuid.git
-[submodule "src/caches"]
-	path = src/caches
-	url = https://github.com/vpetrigo/caches.git
 [submodule "src/unordered_dense"]
 	path = src/unordered_dense
 	url = https://github.com/martinus/unordered_dense.git
+[submodule "src/caches"]
+	path = src/caches
+	url = https://github.com/vpetrigo/caches.git

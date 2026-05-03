@@ -16,6 +16,7 @@ libname = "StreamWorld"
 projectdir = "project"
 
 localEnv = Environment(tools=["default"], PLATFORM="")
+localEnv.Append(CCFLAGS=['-std=c++20'])
 
 # Build profiles can be used to decrease compile times.
 # You can either specify "disabled_classes", OR
@@ -71,7 +72,14 @@ for opt in options:
         env.Append(CPPDEFINES=[opt.define])
 # ================================
 
-env.Append(CPPPATH=["src"]) 
+env.Append(CPPPATH=[
+    "src", 
+    "src/stduuid/include", 
+    "godot-sqlist/",
+    "godot-sqlist/src",
+    "godot-sqlist/src/vfs",
+    "godot-sqlist/src/sqlite",
+]) 
 
 # 强制编译 sqlite_rtree 模块
 env.Append(CPPDEFINES=["SQLITE_ENABLE_RTREE"])
@@ -80,9 +88,9 @@ sources = []
 sources += Glob("src/*.cpp")
 sources += Glob("src/core/stream/*.cpp")
 
-sources += Glob("godot_sqlite/src/*.cpp") 
-sources += Glob("godot_sqlite/src/sqlite/*.c")
-sources += Glob("godot_sqlite/src/vfs/*.cpp")
+sources += Glob("godot-sqlite/src/*.cpp") 
+sources += Glob("godot-sqlite/src/sqlite/*.c")
+sources += Glob("godot-sqlite/src/vfs/*.cpp")
 
 if env['platform'] == 'android':
     darwin_flags = ['-Wl,-dead_strip', '-dead_strip_dylibs', '-no_warn_duplicate_libraries', '-dynamic', '-dylib']

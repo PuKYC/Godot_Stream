@@ -4,19 +4,14 @@
 #include <godot_cpp/variant/aabb.hpp>
 #include <godot_cpp/variant/node_path.hpp>
 
+#include "stduuid/include/uuid.h"
+
 using namespace godot;
 
 struct ObjectData {
-    String uuid;          // 对象唯一标识 (UUID v4 字符串)
-    String parent_uuid;   // 父对象 UUID，根对象为预定义常量 `ROOT_PARENT_ID`
-    int32_t chunk_id = -1;
-    AABB world_aabb;      // 世界空间包围盒（同步更新）
-    bool is_loaded = false;
+    uuids::uuid parent_uuid = uuids::uuid();   // 父对象 UUID，根对象为uuids::uuid
+    int32_t chunk_id = -1;      // 根据wolrd_aabb 计算
+    AABB world_aabb;      // 世界空间包围盒（同步更新） 不会保存到数据库
 
-    // 比较相等性
-    bool operator==(const ObjectData& o) const {
-        return uuid == o.uuid;
-    }
+    ObjectID node_root;     // 节点根对象, 不会保存到数据库
 };
-
-constexpr const char* ROOT_PARENT_ID = "00000000-0000-0000-0000-000000000000";

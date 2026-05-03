@@ -5,11 +5,10 @@
 #include <godot_cpp/core/defs.hpp>
 #include <godot_cpp/godot.hpp>
 
-#include "example_class.h"
-#include "godot_sqlite/register_types.hpp"
-#include "godot_sqlite/vfs/gdsqlite_vfs.hpp"
-#include "stream/stream_manager.h"
-#include "stream/stream_object.h"
+#include "register_types.hpp"
+#include "vfs/gdsqlite_vfs.hpp"
+#include "core/stream/stream_manager.h"
+#include "core/stream/stream_object.h"
 
 using namespace godot;
 
@@ -21,9 +20,8 @@ void initialize_gdextension_types(ModuleInitializationLevel p_level) {
 	}
 	sqlite3_vfs_register(gdsqlite_vfs(), 0);
 
-	GDREGISTER_CLASS(StreamObject);
+	//GDREGISTER_CLASS(StreamObject);
 	GDREGISTER_CLASS(StreamManager);
-	GDREGISTER_CLASS(ExampleClass);
 }
 
 void uninitialize_gdextension_types(ModuleInitializationLevel p_level) {

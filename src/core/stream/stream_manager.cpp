@@ -1,1 +1,490 @@
+#include "stream_manager.h"
+#include "stream_object.h"
 
+#include <godot_cpp/classes/dir_access.hpp>
+#include <godot_cpp/classes/engine.hpp>
+#include <godot_cpp/classes/file_access.hpp>
+#include <godot_cpp/classes/packed_scene.hpp>
+#include <godot_cpp/classes/resource_loader.hpp>
+#include <godot_cpp/classes/resource_saver.hpp>
+#include <godot_cpp/variant/typed_array.hpp>
+#include <godot_cpp/variant/variant.hpp>
+
+using namespace godot;
+
+// ---------- 构造 / 析构 ----------
+StreamManager::StreamManager() : cache_(16, 32) {
+	// 缓存容量可后续调整为可配置属性
+}
+
+StreamManager::~StreamManager() {
+	// 确保数据库操作完成
+	if (db_worker_.is_valid()) {
+		_flush_pending_db_ops(); // 最后一次同步
+	}
+}
+
+void StreamManager::_ready() {
+	if (!database_path_.is_empty()) {
+		_init_database(database_path_);
+	}
+}
+
+void StreamManager::_process(double delta) {
+	// 1. 异步数据库回调执行
+	if (db_worker_.is_valid())
+		db_worker_->flush_callbacks();
+
+	// 2. 轮询场景缓存异步加载状态
+	cache_.update();
+
+	// 3. 处理待加载队列（分批进行，避免单帧负载过高）
+	const int MAX_LOADS_PER_FRAME = 4;
+	int loads = 0;
+	while (!load_queue_.empty() && loads < MAX_LOADS_PER_FRAME) {
+		uuids::uuid uuid = load_queue_.front();
+		load_queue_.pop();
+		_load_object_scene(uuid);
+		++loads;
+	}
+
+	// 4. 统一处理脏 AABB（延迟更新策略）
+	if (!dirty_aabb_.empty()) {
+		for (const auto &uuid : dirty_aabb_) {
+			auto it = registry_.find(uuid);
+			if (it == registry_.end())
+				continue;
+			// 通过 ObjectID 找回节点（已加载）
+			const ObjectID &node_id = it->second.node_root;
+			if (node_id.is_valid()) {
+				StreamObjectNode *node = Object::cast_to<StreamObjectNode>(
+						ObjectDB::get_instance(node_id));
+				if (node && node->is_inside_tree()) {
+					it->second.world_aabb = node->get_total_aabb();
+					to_upsert_.insert(uuid); // 标记为需写库
+				}
+			}
+		}
+		dirty_aabb_.clear();
+	}
+
+	// 5. 批量数据库同步
+	_flush_pending_db_ops();
+}
+
+// 数据库初始化
+void StreamManager::_init_database(const String &path) {
+	object_scene_dir_ = derive_object_dir(path);
+
+	// 确保目录存在
+	if (!DirAccess::dir_exists_absolute(object_scene_dir_)) {
+		Error err = DirAccess::make_dir_absolute(object_scene_dir_);
+		if (err != OK) {
+			ERR_PRINT("Failed to create object scene directory: " + object_scene_dir_);
+		}
+	}
+
+	// 创建异步数据库 worker（独立线程）
+	db_worker_ = Ref<AsyncDbWorker>(memnew(AsyncDbWorker(path)));
+	db_worker_->push_task({
+			[](StreamSqliteDB &db) {
+				// 可选：执行启动时的数据库维护或读取版本信息
+			},
+			[]() {} // 无需回调
+	});
+
+	// 从数据库加载已持久化对象列表（同步，因为刚启动，轻量操作）
+	// 可通过 db_worker_ 提交同步任务或直接在构造函数中读取
+	// 此处略，实际可在 worker 创建后提交一个查询任务，在回调中填充 registry_
+}
+
+// ---------- 公开接口 ----------
+void StreamManager::set_database_path(const String &path) {
+	database_path_ = path;
+	// 若已运行，应立即初始化数据库
+	if (is_node_ready())
+		_init_database(path);
+}
+
+String StreamManager::get_database_path() const {
+	return database_path_;
+}
+
+void StreamManager::query_aabb(const AABB &aabb) {
+	auto result_ptr = std::make_shared<a_hashmap<uuids::uuid, ObjectData>>();
+	db_worker_->push_task({ [aabb, result_ptr](StreamSqliteDB &db) {
+							   // 将查询结果赋值给 shared_ptr 指向的 map
+							   *result_ptr = db.query_objects(aabb);
+						   },
+							[this, result_ptr]() {
+								_on_query_result(*result_ptr);
+							} });
+}
+
+// ---------- 对象管理（由信号触发 不一定） ----------
+void StreamManager::add_object(StreamObjectNode *node) {
+	if (!node)
+		return;
+	uuids::uuid uuid = node->get_uuid();
+	if (uuid.is_nil()) {
+		// 理论上不应发生，或在首次添加时分配新 UUID
+		WARN_PRINT("StreamObjectNode without valid UUID cannot be added.");
+		return;
+	}
+
+	// 设置父 UUID（从节点读取，已经是序列化的结果）
+	ObjectData data;
+	data.parent_uuid = node->get_parent_uuid();
+	data.world_aabb = node->get_total_aabb();
+	data.node_root = node->get_instance_id();
+
+	// 计算 chunk_id（需要 world_aabb，这里同步计算）
+	// 但数据库查询 chunk_id 通常异步，但为了简单，可以先用 AABB 计算 chunk 坐标，然后异步 upsert。
+	// 这里我们在主线程调用 StreamSqliteDB 的同步 query_chunk 不合适（阻塞），
+	// 所以将 chunk_id 设为 -1，在后续异步 upsert 时由数据库计算。
+	// 或者在 db_worker 中添加预计算 chunk 的方法。
+	// 此处我们假设 upsert_object 内部会自动调用 query_chunk 并填入 chunk_id。
+	// 但 ObjectData::chunk_id 必须最终存储正确的值，交给数据库。
+	data.chunk_id = -1; // 将后续异步填充
+
+	registry_[uuid] = data;
+
+	// 建立父子映射（基于 parent_uuid）
+	if (!data.parent_uuid.is_nil())
+		children_map_[data.parent_uuid].insert(uuid);
+
+	to_upsert_.insert(uuid);
+}
+
+void StreamManager::remove_object(const uuids::uuid &uuid) {
+    // 收集所有要删除的 UUID（自身 + 全部子孙）
+    a_hashset<uuids::uuid> to_delete = _collect_descendants(uuid);
+
+    // 将所有受影响的 UUID 加入 pending_removal_，抑制后续 _exit_tree 信号
+    for (const auto &id : to_delete)
+        pending_removal_.insert(id);
+
+    // 遍历处理每个对象（顺序无关紧要）
+    for (const auto &id : to_delete) {
+        auto it = registry_.find(id);
+        if (it == registry_.end())
+            continue;
+
+        // 卸载已实例化的场景节点
+        if (it->second.node_root.is_valid()) {
+            StreamObjectNode *obj_node = Object::cast_to<StreamObjectNode>(
+                ObjectDB::get_instance(it->second.node_root));
+            if (obj_node) {
+                _save_object_to_file(id, obj_node);   // 保存最终状态
+                obj_node->queue_free();                // 移出场景树
+                cache_.release(id, obj_node);          // 放入节点缓存（可选）
+            }
+        }
+
+        // 删除磁盘上的场景文件
+        _delete_object_scene(id);
+        cache_.remove_scene(id);                       // 从资源缓存移除
+
+        // 清理父子关系（仅从父记录中擦除自己）
+        if (!it->second.parent_uuid.is_nil())
+            children_map_[it->second.parent_uuid].erase(id);
+
+        // 从注册表移除
+        registry_.erase(it);
+
+        // 标记数据库删除（下帧批量同步）
+        to_remove_.insert(id);
+        to_upsert_.erase(id);
+    }
+
+    // 清除这些节点的 children_map 条目（它们不可能再作为父节点存在）
+    for (const auto &id : to_delete)
+        children_map_.erase(id);
+
+    // 删除完成后，立即移除 pending 标记（允许后续同名 ID 正常使用）
+    for (const auto &id : to_delete)
+        pending_removal_.erase(id);
+}
+
+void StreamManager::update_object(StreamObjectNode *node) {
+	uuids::uuid uuid = node->get_uuid();
+	if (!registry_.count(uuid))
+		return;
+
+	// 更新 AABB 和 node_root（以防节点重新创建）
+	registry_[uuid].world_aabb = node->get_total_aabb();
+	registry_[uuid].node_root = node->get_instance_id();
+
+	// parent_uuid 可能变化，处理父子关系迁移
+	uuids::uuid new_parent = node->get_parent_uuid();
+	ObjectData &data = registry_[uuid];
+	if (new_parent != data.parent_uuid) {
+		if (!data.parent_uuid.is_nil())
+			children_map_[data.parent_uuid].erase(uuid);
+		if (!new_parent.is_nil())
+			children_map_[new_parent].insert(uuid);
+		data.parent_uuid = new_parent;
+	}
+
+	to_upsert_.insert(uuid);
+}
+
+a_hashset<uuids::uuid> StreamManager::_collect_descendants(const uuids::uuid &root) const {
+    a_hashset<uuids::uuid> result;
+    std::vector<uuids::uuid> stack{root};
+    while (!stack.empty()) {
+        uuids::uuid current = stack.back();
+        stack.pop_back();
+        if (result.insert(current).second) { // 首次插入成功才继续展开子节点（防环）
+            auto it = children_map_.find(current);
+            if (it != children_map_.end()) {
+                for (const auto &child : it->second)
+                    stack.push_back(child);
+            }
+        }
+    }
+    return result;
+}
+
+void StreamManager::_connect_node_signals(StreamObjectNode *node) {
+	node->connect("object_aabb_changed", Callable(this, "_on_object_aabb_changed").bind(node));
+	
+}
+
+String StreamManager::derive_object_dir(const String &db_path) const {
+    String base = db_path.get_base_dir();
+    String name = "." + db_path.get_file().get_basename();
+    return base.path_join(name) + "/";
+}
+
+// 内部槽：节点进入树
+void StreamManager::_on_object_entered(StreamObjectNode *node) {
+	// 防止编辑器模式或重复
+	if (Engine::get_singleton()->is_editor_hint())
+		return;
+	uuids::uuid uuid = node->get_uuid();
+	if (uuid.is_nil())
+		return;
+
+	// 如果注册表中已存在，说明是重新加载，只需更新引用
+	if (registry_.count(uuid)) {
+		registry_[uuid].node_root = node->get_instance_id();
+		// 重新连接信号（因为之前的连接已随节点删除而断开）
+		_connect_node_signals(node);
+		return;
+	}
+}
+
+// 槽函数
+void StreamManager::_on_object_exited(StreamObjectNode *node) {
+	uuids::uuid uuid = node->get_uuid();
+	if (pending_removal_.count(uuid)) {
+		return;
+	}
+	// 否则是用户手动删除，执行完整移除逻辑
+	remove_object(uuid);
+}
+
+void StreamManager::_on_object_aabb_changed(StreamObjectNode *node) {
+	uuids::uuid uuid = node->get_uuid();
+	if (registry_.count(uuid)) {
+		dirty_aabb_.insert(uuid); // 延迟至 _process 更新
+	}
+}
+
+// ---------- 异步查询结果处理 ----------
+void StreamManager::_on_query_result(const a_hashmap<uuids::uuid, ObjectData> &db_objects) {
+	// 1. 构建新数据集的 UUID 集合
+	a_hashset<uuids::uuid> new_set;
+	for (const auto &pair : db_objects)
+		new_set.insert(pair.first);
+
+	// 2. 卸载不再需要的对象
+	std::vector<uuids::uuid> to_unload;
+	for (auto &pair : registry_) {
+		if (new_set.count(pair.first) == 0 && pair.second.node_root.is_valid()) {
+			to_unload.push_back(pair.first);
+		}
+	}
+	for (const auto &uuid : to_unload) {
+		_unload_object(uuid); // 会保存场景并缓存
+	}
+
+	// 3. 合并数据库最新数据到注册表（保留 is_loaded 和 node_root 等运行时状态）
+	for (const auto &pair : db_objects) {
+		const uuids::uuid &uuid = pair.first;
+		const ObjectData &db_data = pair.second;
+
+		if (registry_.count(uuid)) {
+			// 已存在，更新静态数据，保持运行时状态
+			ObjectData &local = registry_[uuid];
+			local.parent_uuid = db_data.parent_uuid;
+			local.chunk_id = db_data.chunk_id;
+			// world_aabb 不覆盖，因为本地可能更新
+		} else {
+			registry_[uuid] = db_data;
+		}
+	}
+
+	// 4. 重建 children_map
+	children_map_.clear();
+	for (auto &pair : registry_) {
+		const uuids::uuid &parent = pair.second.parent_uuid;
+		if (!parent.is_nil())
+			children_map_[parent].insert(pair.first);
+	}
+
+	// 5. 标记需要加载的根对象（父为空且未加载）
+	for (const auto &pair : registry_) {
+		if (pair.second.parent_uuid.is_nil() && !pair.second.node_root.is_valid()) {
+			load_queue_.push(pair.first);
+		}
+	}
+}
+
+void StreamManager::_load_object_scene(const uuids::uuid &uuid) {
+	if (!registry_.count(uuid))
+		return;
+	ObjectData &data = registry_[uuid];
+	if (data.node_root.is_valid())
+		return;
+
+	String scene_path = _object_scene_path(uuid);
+	Node *node = cache_.acquire(uuid, scene_path);
+	if (!node) {
+		// 资源尚未缓存：发起异步加载请求，稍后再试
+		cache_.request_scene(uuid, scene_path);
+		load_queue_.push(uuid); // 重新入队等待加载完成
+		return;
+	}
+
+	// 成功获取实例
+	StreamObjectNode *stream_node = Object::cast_to<StreamObjectNode>(node);
+	if (!stream_node) {
+		// 不是期望的节点类型，清理
+		memdelete(node);
+		return;
+	}
+
+	// 设置所有者并挂载
+	node->set_owner(this);
+	add_child(node);
+	// 节点进入树后会自动触发 object_entered_tree 信号，我们已在槽中处理注册连接
+}
+
+void StreamManager::_unload_object(const uuids::uuid &uuid) {
+    if (!registry_.count(uuid))
+        return;
+    
+    // 1. 收集所有子孙 UUID（包括自身），统一插入 pending_removal_
+    a_hashset<uuids::uuid> all_ids = _collect_descendants(uuid);
+    for (const auto &id : all_ids)
+        pending_removal_.insert(id);
+
+    // 递归卸载子对象（深度优先，保存并缓存子节点）
+    if (children_map_.count(uuid)) {
+        auto children = children_map_[uuid]; // 拷贝，避免迭代中修改
+        for (const auto &child : children)
+            _unload_object(child);
+    }
+
+    // 处理自身节点
+    ObjectData &data = registry_[uuid];
+    if (data.node_root.is_valid()) {
+        StreamObjectNode *obj_node = Object::cast_to<StreamObjectNode>(
+            ObjectDB::get_instance(data.node_root));
+        if (obj_node) {
+            _save_object_to_file(uuid, obj_node);
+            remove_child(obj_node);
+            cache_.release(uuid, obj_node);
+        }
+    }
+
+    // 清空所有已卸载的 node_root（统一操作，避免遗漏）
+    for (const auto &id : all_ids) {
+        if (registry_.count(id))
+            registry_[id].node_root = ObjectID();
+    }
+
+    // 移除 pending 标记
+    for (const auto &id : all_ids)
+        pending_removal_.erase(id);
+}
+
+void StreamManager::_save_object_to_file(const uuids::uuid &uuid, Node *node) {
+	// 打包整个 node 树
+	Ref<PackedScene> scene;
+	scene.instantiate();
+	scene->pack(node);
+	if (scene.is_null()) {
+		UtilityFunctions::printerr("Failed to pack scene for object: ", uuids::to_string(uuid).c_str());
+		return;
+	}
+
+	String path = _object_scene_path(uuid);
+	Error err = ResourceSaver::get_singleton()->save(scene, path, ResourceSaver::FLAG_COMPRESS);
+	if (err != OK) {
+		ERR_PRINT("Failed to save scene to " + path);
+	}
+}
+
+void StreamManager::_delete_object_scene(const uuids::uuid &uuid) {
+	String path = _object_scene_path(uuid);
+	if (FileAccess::file_exists(path)) {
+		DirAccess::remove_absolute(path);
+	}
+	cache_.remove_scene(uuid);
+}
+
+String StreamManager::_object_scene_path(const uuids::uuid &uuid) const {
+	return object_scene_dir_ + String(uuids::to_string(uuid).c_str()) + ".tscn";
+}
+
+// 数据库同步
+void StreamManager::_flush_pending_db_ops() {
+	if (!db_worker_.is_valid())
+		return;
+	if (to_upsert_.empty() && to_remove_.empty())
+		return;
+
+	auto upsert = std::make_shared<a_hashset<uuids::uuid>>(std::move(to_upsert_));
+	to_upsert_.clear();
+	auto remove = std::make_shared<a_hashset<uuids::uuid>>(std::move(to_remove_));
+	to_remove_.clear();
+
+	db_worker_->push_task({
+			[upsert, remove, this](StreamSqliteDB &db) {
+				// 执行删除
+				for (const auto &uuid : *remove) {
+					db.remove_object(uuid);
+				}
+				// 执行更新/插入
+				for (const auto &uuid : *upsert) {
+					auto it = registry_.find(uuid);
+					if (it == registry_.end())
+						continue;
+					// 需要计算 chunk_id：方法1. 通过 db 提供的 upsert_object 自动处理；
+					// 方法2. 我们在这里计算 chunk 并调用 upsert_object 传入。
+					// 由于 StreamSqliteDB::upsert_object 接受 ObjectData，内部应该调用 query_chunk。
+					// 因此我们直接传入 ObjectData，但 chunk_id 此时可能为 -1。
+					// 修改 upsert_object 使其在传入 -1 时自动计算 chunk。
+					db.upsert_object(uuid, it->second);
+				}
+			},
+			[]() {} // 完成回调（空）
+	});
+}
+
+// ---------- 属性绑定 ----------
+void StreamManager::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("set_database_path", "path"), &StreamManager::set_database_path);
+	ClassDB::bind_method(D_METHOD("get_database_path"), &StreamManager::get_database_path);
+	ADD_PROPERTY(PropertyInfo(Variant::STRING, "database_path", PROPERTY_HINT_DIR), "set_database_path", "get_database_path");
+
+	ClassDB::bind_method(D_METHOD("query_aabb", "aabb"), &StreamManager::query_aabb);
+
+	// 内部槽注册（供信号连接使用）
+	ClassDB::bind_method(D_METHOD("_on_object_entered"), &StreamManager::_on_object_entered);
+	ClassDB::bind_method(D_METHOD("_on_object_exited"), &StreamManager::_on_object_exited);
+	ClassDB::bind_method(D_METHOD("_on_object_aabb_changed"), &StreamManager::_on_object_aabb_changed);
+}

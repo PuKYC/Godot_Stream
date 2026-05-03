@@ -1,50 +1,50 @@
 #pragma once
 
+#include "stream_manager.h" // 仅为前置声明，不调用其方法
+
 #include <godot_cpp/classes/node3d.hpp>
-#include <godot_cpp/variant/typed_array.hpp>
+#include <godot_cpp/variant/aabb.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
+#include <godot_cpp/variant/typed_array.hpp>
 
 using namespace godot;
 
-class StreamManager; // 前置声明
-
 class StreamObjectNode : public Node3D {
-    GDCLASS(StreamObjectNode, Node3D)
-    friend class StreamManager;
+	GDCLASS(StreamObjectNode, Node3D)
+	friend class StreamManager;
 
-    String uuid;
-    String parent_uuid;
-    bool is_stream_remove = false;
+	uuids::uuid uuid;
+	uuids::uuid parent_uuid;
 
-    // 用于计算总包围盒的内部节点列表
-    TypedArray<NodePath> aabb_sources;   // 手动配置的子节点路径
-    Dictionary child_stream_aabbs;      // 子 StreamObjectNode 路径 -> AABB
+	// 用于计算总包围盒的内部节点列表
+	TypedArray<NodePath> aabb_sources; // 手动配置的子节点路径
 
 public:
-    // 外部只读访问
-    String get_uuid() const { return uuid; }
-    String get_parent_uuid() const { return parent_uuid; }
+	// 外部只读访问
+	uuids::uuid get_uuid() const { return uuid; }
+	uuids::uuid get_parent_uuid() const { return parent_uuid; }
 
-    // 总包围盒（包含自身及子流式对象）
-    AABB get_total_aabb() const;
+	String get_uuid_str() const { return uuids::to_string(uuid).c_str(); }
+	String get_parent_uuid_str() const { return uuids::to_string(uuid).c_str(); }
 
-    // 节点生命周期钩子（只发信号，不做业务）
-    void _ready() override;
-    void _exit_tree() override;
-    void _notification(int p_what);
+	// 总包围盒（包含自身及子流式对象）
+	AABB get_total_aabb() const;
+
+	// 节点生命周期钩子（只发信号，不做业务）
+	void _ready() override;
+	void _notification(int p_what);
 
 protected:
-    static void _bind_methods();
+	static void _bind_methods();
 
-    // 供编辑器使用的属性
-    void set_uuid(const String& id);
-    void set_parent_uuid(const String& id);
-    void set_aabb_sources(const TypedArray<NodePath>& arr);
-    TypedArray<NodePath> get_aabb_sources() const;
+	void set_uuid_str(const String &id);
+	void set_parent_uuid_str(const String &id);
 
-	// signals
-    // 通知管理器状态变化
-    void object_entered_tree(StreamObjectNode* node);
-    void object_exited_tree(StreamObjectNode* node);
-    void object_aabb_changed(StreamObjectNode* node);
+	void set_uuid(const uuids::uuid &id);
+	void set_parent_uuid(const uuids::uuid &id);
+
+	void is_inited(); // 检查是否已经被分配uuid 有则代表已经在数据库注册
+	
+	void set_aabb_sources(const TypedArray<NodePath> &arr);
+	TypedArray<NodePath> get_aabb_sources() const;
 };
