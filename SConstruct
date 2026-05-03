@@ -73,12 +73,7 @@ for opt in options:
 # ================================
 
 env.Append(CPPPATH=[
-    "src", 
-    "src/stduuid/include", 
-    "godot-sqlite/",
-    "godot-sqlite/src",
-    "godot-sqlite/src/vfs",
-    "godot-sqlite/src/sqlite",
+    "src",
 ]) 
 
 # 强制编译 sqlite_rtree 模块
@@ -88,9 +83,9 @@ sources = []
 sources += Glob("src/*.cpp")
 sources += Glob("src/core/stream/*.cpp")
 
-sources += Glob("godot-sqlite/src/*.cpp") 
-sources += Glob("godot-sqlite/src/sqlite/*.c")
-sources += Glob("godot-sqlite/src/vfs/*.cpp")
+sources += Glob("gdsqlite/*.cpp") 
+sources += Glob("gdsqlite/sqlite/*.c")
+sources += Glob("gdsqlite/vfs/*.cpp")
 
 if env['platform'] == 'android':
     env.Append(CXXFLAGS=['-fexceptions'])

@@ -5,8 +5,8 @@
 #include <godot_cpp/core/defs.hpp>
 #include <godot_cpp/godot.hpp>
 
-#include "register_types.hpp"
-#include "vfs/gdsqlite_vfs.hpp"
+#include "gdsqlite/register_types.hpp"
+#include "gdsqlite/vfs/gdsqlite_vfs.hpp"
 #include "core/stream/stream_manager.h"
 #include "core/stream/stream_object.h"
 

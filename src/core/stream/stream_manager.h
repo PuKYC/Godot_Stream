@@ -10,7 +10,7 @@
 #include "../components/object_data.h"
 #include "../components/chunk.h"
 
-#include "stduuid/include/uuid.h"
+#include "uuid.h"
 
 #include <queue>
 #include <vector>

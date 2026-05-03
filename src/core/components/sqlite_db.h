@@ -1,6 +1,7 @@
 #pragma once
 
-#include <sqlite/sqlite3.h>
+#include "gdsqlite/sqlite/sqlite3.h"
+
 #include <mutex>
 #include <stdexcept>
 #include <string>

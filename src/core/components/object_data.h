@@ -4,7 +4,7 @@
 #include <godot_cpp/variant/aabb.hpp>
 #include <godot_cpp/variant/node_path.hpp>
 
-#include "stduuid/include/uuid.h"
+#include <uuid.h>
 
 using namespace godot;
 

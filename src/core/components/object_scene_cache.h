@@ -8,7 +8,7 @@
 
 #include "core/ankerl.h"
 #include "core/caches.h"
-#include "stduuid/include/uuid.h"
+#include "uuid.h"
 
 using namespace godot;
 

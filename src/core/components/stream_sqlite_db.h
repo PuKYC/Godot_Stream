@@ -5,8 +5,8 @@
 #include "sqlite_db.h"
 #include "core/ankerl.h"
 #include "core/caches.h"
-#include "stduuid/include/uuid.h"
 
+#include <uuid.h>
 #include <godot_cpp/variant/aabb.hpp>
 #include <string>
 
