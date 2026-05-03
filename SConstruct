@@ -57,6 +57,10 @@ Help(opts.GenerateHelpText(localEnv))
 
 env = localEnv.Clone()
 
+# 针对 Web 平台自动禁用线程，避免 LLVM 异常模型冲突
+if env.get("platform") == "web" and env.get("threads", "") != "yes":
+    env["threads"] = "no"
+
 if not (os.path.isdir("godot-cpp") and os.listdir("godot-cpp")):
     print_error("""godot-cpp is not available within this folder, as Git submodules haven't been initialized.
 Run the following command to download godot-cpp:
@@ -82,6 +86,7 @@ env.Append(CPPDEFINES=["SQLITE_ENABLE_RTREE"])
 sources = []
 sources += Glob("src/*.cpp")
 sources += Glob("src/core/stream/*.cpp")
+sources += Glob("src/core/components/*.cpp")
 
 sources += Glob("gdsqlite/*.cpp") 
 sources += Glob("gdsqlite/sqlite/*.c")
