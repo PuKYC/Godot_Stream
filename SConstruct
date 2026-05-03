@@ -1,10 +1,11 @@
 #!/usr/bin/env python
+
 import os
 import sys
 
 from methods import print_error
 
-# 如果 CompileTimeOption 未定义，请在此处定义
+
 class CompileTimeOption:
     def __init__(self, key, name, help, define):
         self.key = key
@@ -12,18 +13,17 @@ class CompileTimeOption:
         self.help = help
         self.define = define
 
+
 libname = "StreamWorld"
 projectdir = "project"
 
 localEnv = Environment(tools=["default"], PLATFORM="")
-localEnv.Append(CCFLAGS=['-std=c++20'])
 
 # Build profiles can be used to decrease compile times.
 # You can either specify "disabled_classes", OR
 # explicitly specify "enabled_classes" which disables all other classes.
 # Modify the example file as needed and uncomment the line below or
 # manually specify the build_profile parameter when running SCons.
-
 # localEnv["build_profile"] = "build_profile.json"
 
 customs = ["custom.py"]
@@ -31,7 +31,7 @@ customs = [os.path.abspath(path) for path in customs]
 
 opts = Variables(customs, ARGUMENTS)
 
-# ===== 添加 SQLite 编译选项 =====
+# ===== SQLite 编译选项 =====
 options = [
     CompileTimeOption(
         key="enable_fts5",
@@ -49,74 +49,94 @@ options = [
 
 for opt in options:
     opts.Add(BoolVariable(opt.key, opt.help, False))
-# ===============================
 
 opts.Update(localEnv)
-
 Help(opts.GenerateHelpText(localEnv))
 
 env = localEnv.Clone()
 
 if not (os.path.isdir("godot-cpp") and os.listdir("godot-cpp")):
-    print_error("""godot-cpp is not available within this folder, as Git submodules haven't been initialized.
+    print_error(
+        """godot-cpp is not available within this folder, as Git submodules haven't been initialized.
 Run the following command to download godot-cpp:
-
-    git submodule update --init --recursive""")
+    git submodule update --init --recursive"""
+    )
     sys.exit(1)
 
 env = SConscript("godot-cpp/SConstruct", {"env": env, "customs": customs})
 
-# ===== 根据用户选择添加宏定义 =====
+# ===== C++ 标准 =====
+# 必须在 godot-cpp/SConstruct 之后设置，且只作用于 C++ 文件（CXXFLAGS）。
+# MSVC 使用 /std:c++20，GCC / Clang / Emscripten 使用 -std=c++20。
+if env.get("is_msvc", False):
+    env.Append(CXXFLAGS=["/std:c++20"])
+else:
+    env.Append(CXXFLAGS=["-std=c++20"])
+
+# ===== 异常处理 =====
+# Android NDK 和 Emscripten 默认关闭 C++ 异常，需显式启用。
+# 其他平台（Linux / macOS / Windows）默认启用，无需额外设置。
+if env["platform"] in ["android", "web"]:
+    env.Append(CXXFLAGS=["-fexceptions"])
+
+# ===== 链接器优化 =====
+# --gc-sections 消除未使用的代码段，仅 GNU ld（Linux / Android）支持。
+# macOS 使用 -dead_strip（由 godot-cpp 负责），Windows / Web 不需要此 flag。
+if env["platform"] in ["linux", "android"]:
+    # 清理可能从 godot-cpp 继承的 macOS 专用 linker flag
+    _darwin_flags = [
+        "-Wl,-dead_strip",
+        "-dead_strip_dylibs",
+        "-no_warn_duplicate_libraries",
+        "-dynamic",
+        "-dylib",
+    ]
+    for _flag in _darwin_flags:
+        while _flag in env.get("LINKFLAGS", []):
+            env["LINKFLAGS"].remove(_flag)
+    env.Append(LINKFLAGS=["-Wl,--gc-sections"])
+
+# ===== 根据用户选项添加宏定义 =====
 for opt in options:
     if env.get(opt.key, False):
         env.Append(CPPDEFINES=[opt.define])
-# ================================
 
-env.Append(CPPPATH=[
-    "src",
-]) 
+env.Append(CPPPATH=["src"])
 
-# 强制编译 sqlite_rtree 模块
+# 强制启用 SQLite R*Tree 模块
 env.Append(CPPDEFINES=["SQLITE_ENABLE_RTREE"])
 
+# ===== 源文件 =====
 sources = []
 sources += Glob("src/*.cpp")
+sources += Glob("src/core/components/*.cpp")
 sources += Glob("src/core/stream/*.cpp")
-
-sources += Glob("gdsqlite/*.cpp") 
+sources += Glob("gdsqlite/*.cpp")
 sources += Glob("gdsqlite/sqlite/*.c")
 sources += Glob("gdsqlite/vfs/*.cpp")
 
-if env['platform'] == 'android':
-    env.Append(CXXFLAGS=['-fexceptions'])
-    
-    darwin_flags = ['-Wl,-dead_strip', '-dead_strip_dylibs', '-no_warn_duplicate_libraries', '-dynamic', '-dylib']
-
-    for flag in darwin_flags:
-        while flag in env.get('LINKFLAGS', []):
-            env['LINKFLAGS'].remove(flag)
-
-    env.Append(LINKFLAGS=['-Wl,--gc-sections'])
-
+# ===== 文档数据（仅 debug / editor 目标）=====
 if env["target"] in ["editor", "template_debug"]:
     try:
-        doc_data = env.GodotCPPDocData("src/gen/doc_data.gen.cpp", source=Glob("doc_classes/*.xml"))
+        doc_data = env.GodotCPPDocData(
+            "src/gen/doc_data.gen.cpp", source=Glob("doc_classes/*.xml")
+        )
         sources.append(doc_data)
     except AttributeError:
         print("Not including class reference as we're targeting a pre-4.3 baseline.")
 
-# .dev doesn't inhibit compatibility, so we don't need to key it.
-# .universal just means "compatible with all relevant arches" so we don't need to key it.
-suffix = env['suffix'].replace(".dev", "").replace(".universal", "")
-
-lib_filename = "{}{}{}{}".format(env.subst('$SHLIBPREFIX'), libname, suffix, env.subst('$SHLIBSUFFIX'))
+# ===== 构建输出 =====
+# .dev 不影响兼容性，.universal 表示多架构合并，两者都不需要体现在文件名中。
+suffix = env["suffix"].replace(".dev", "").replace(".universal", "")
+lib_filename = "{}{}{}{}".format(
+    env.subst("$SHLIBPREFIX"), libname, suffix, env.subst("$SHLIBSUFFIX")
+)
 
 library = env.SharedLibrary(
-    "bin/{}/{}".format(env['platform'], lib_filename),
+    "bin/{}/{}".format(env["platform"], lib_filename),
     source=sources,
 )
 
 copy = env.Install("{}/bin/{}/".format(projectdir, env["platform"]), library)
 
-default_args = [library, copy]
-Default(*default_args)
+Default(library, copy)

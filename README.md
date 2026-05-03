@@ -1,56 +1,126 @@
-# godot-cpp template
-This repository serves as a quickstart template for GDExtension development with Godot 4.0+.
+# Godot Stream (GDExtension)
 
-## Contents
-* Preconfigured source files for C++ development of the GDExtension ([src/](./src/))
-* An empty Godot project in [project/](./project), to test the GDExtension
-* godot-cpp as a submodule (`godot-cpp/`)
-* GitHub Issues template ([.github/ISSUE_TEMPLATE.yml](./.github/ISSUE_TEMPLATE.yml))
-* GitHub CI/CD workflows to publish your library packages when creating a release ([.github/workflows/builds.yml](./.github/workflows/builds.yml))
-* An SConstruct file with various functions, such as boilerplate for [Adding documentation](https://docs.godotengine.org/en/stable/tutorials/scripting/cpp/gdextension_docs_system.html)
+A C++ GDExtension for [Godot Engine](https://godotengine.org) that implements a streaming world management system.  
+It efficiently loads and unloads scene objects based on **AABB (Axis-Aligned Bounding Box) queries** or visibility, backed by an **SQLite database** and an asynchronous worker thread.
 
-## Usage - Template
+## Features
 
-To use this template, log in to GitHub and click the green "Use this template" button at the top of the repository page. This will let you create a copy of this repository with a clean git history.
+- **AABB‑based spatial queries**  
+  Load only the objects that intersect a given bounding box – ideal for chunk‑based or open‑world streaming.
 
-To get started with your new GDExtension, do the following:
+- **UUID‑identified persistent objects**  
+  Every streamable object is identified by a `uuid` and can be stored in a database together with its world AABB and parent‑child relationships.
 
-* clone your repository to your local computer
-* initialize the godot-cpp git submodule via `git submodule update --init`
-* change the name of the compiled library file inside the [SConstruct](./SConstruct) file by modifying the `libname` string.
-  * change the paths of the to be loaded library name inside the [project/bin/example.gdextension](./project/bin/example.gdextension) file, by replacing `EXTENSION-NAME` with the name you chose for `libname`.
-* change the `entry_symbol` string inside [project/bin/example.gdextension](./project/bin/example.gdextension) file.
-  * rename the `example_library_init` function in [src/register_types.cpp](./src/register_types.cpp) to the same name you chose for `entry_symbol`.
-* change the name of the `project/bin/example.gdextension` file
+- **Automatic scene serialization & caching**  
+  When unloaded, node hierarchies are saved as `.tscn` files into a dedicated directory and optionally kept in an in‑memory cache for faster re‑instantiation.
 
-Now, you can build the project with the following command:
+- **Asynchronous database operations**  
+  Heavy SQLite reads/writes run on a separate thread, keeping the main thread responsive.
 
-```shell
-scons
+- **Parent‑child hierarchy management**  
+  Loading/unloading respects the object tree; child objects are automatically loaded when the parent enters the scene and unloaded together with it.
+
+- **Editor integration ready**  
+  `StreamObjectNode` exposes configurable `aabb_sources` paths so that designers can assign which visual meshes contribute to the bounding box.  
+  The `StreamManager` can be placed as a Node3D in the scene tree and configured via the inspector.
+
+- **Batch update and removal**  
+  Changes to AABB or parent relationships are collected over a frame and flushed to the database in a single batch to reduce overhead.
+
+## Requirements
+
+- Godot 4.x (built with GDExtension support)
+- C++17 compatible compiler
+- [stduuid](https://github.com/mariusbancila/stduuid) (header‑only UUID library)
+- [SQLite3](https://www.sqlite.org/) (amalgamation or system library)
+- `godot-cpp` (same version as your Godot 4.x build)
+
+
+## Building
+
+1. Clone this repository, including submodules:
+   ```bash
+   git clone --recurse-submodules <repo-url> stream_manager
+   cd stream_manager
 ```
 
-If the build command worked, you can test it with the [project](./project) project. Import it into Godot, open it, and launch the main scene. You should see it print the following line in the console:
+1. Make sure you have Godot 4.x and its godot-cpp bindings.
+      If you placed godot-cpp manually, adjust SConstruct accordingly.
+2. Build with SCons:
+   ```bash
+   scons platform=<your_platform>
+   # Example: scons platform=linux
+   ```
+3. Copy or symlink the resulting .gdextension file and the compiled libraries into your Godot project’s res:// directory.
+      See the official GDExtension documentation for detailed steps.
 
+Usage
+
+1. Register the extension in your project
+
+Make sure your Godot project contains the .gdextension file and the binaries.
+
+2. Add a StreamManager to your scene
+
+· In the editor, add a StreamManager node to your main scene.
+· Set the Database Path property to a writable file location, e.g.:
+  ```
+  res://world_stream.db
+  ```
+  The manager will automatically create the database and an associated directory for .tscn files (e.g. res://.world_stream/).
+
+3. Create streamable objects
+
+Design your object as a StreamObjectNode scene:
+
+· Add StreamObjectNode as the root node.
+· Add child visual nodes (like MeshInstance3D).
+· In the aabb_sources array property, add the NodePaths of the children that contribute to the bounding box (e.g. ./MeshInstance3D).
+· The uuid and parent_uuid are automatically set during loading, so leave them empty in the saved scene.
+
+4. Load objects dynamically
+
+From GDScript or C++, call query_aabb(aabb) on the StreamManager.
+The manager will:
+
+· Query the database for objects whose bounding box intersects the given AABB.
+· Unload objects that are no longer relevant.
+· Load new objects by instantiating the saved .tscn files and adding them as children of the manager.
+
+```gdscript
+# Example GDScript
+extends Node3D
+
+func _ready():
+    var stream_mgr = get_node("/root/Main/StreamManager")
+    # Request objects inside a 100x100x100 box around origin
+    stream_mgr.query_aabb(AABB(Vector3(0,0,0), Vector3(100,100,100)))
 ```
-Type: 24
-```
 
-### Configuring an IDE
-You can develop your own extension with any text editor and by invoking scons on the command line, but if you want to work with an IDE (Integrated Development Environment), you can use a compilation database file called `compile_commands.json`. Most IDEs should automatically identify this file, and self-configure appropriately.
-To generate the database file, you can run one of the following commands in the project root directory:
-```shell
-# Generate compile_commands.json while compiling
-scons compiledb=yes
+5. Automatic object lifecycle
 
-# Generate compile_commands.json without compiling
-scons compiledb=yes compile_commands.json
-```
+· When a StreamObjectNode enters the scene tree, it reports its UUID to the manager.
+· When it leaves (e.g. manually removed or unloaded), the manager saves its current state to a .tscn file and optionally caches it.
+· AABB changes are batched and flushed to the database every frame.
 
-## Usage - Actions
+API Overview
 
-This repository comes with continuous integration (CI) through a GitHub action that tests building the GDExtension.
-It triggers automatically for each pushed change. You can find and edit it in [builds.yml](.github/workflows/ci.yml).
+StreamManager (Node3D)
 
-There is also a workflow ([make_build.yml](.github/workflows/make_build.yml)) that builds the GDExtension for all supported platforms that you can use to create releases.
-You can trigger this workflow manually from the `Actions` tab on GitHub.
-After it is complete, you can find the file `godot-cpp-template.zip` in the `Artifacts` section of the workflow run.
+Method / Property Description
+set_database_path(path: String) Set the SQLite database file path.
+get_database_path() -> String Returns the current database path.
+query_aabb(aabb: AABB) Initiate an asynchronous AABB query. The result is used to load/unload objects.
+
+Signals are connected automatically. You should not need to call the internal methods (add_object, remove_object, etc.) unless you are extending the system.
+
+StreamObjectNode (Node3D)
+
+Property Description
+uuid (read‑only) String representation of the object’s UUID. Set internally.
+parent_uuid (read‑only) UUID of the parent stream object (for hierarchy).
+aabb_sources Array of NodePaths to VisualInstance3D children used to calculate the total AABB.
+
+License
+
+This project is licensed under the GNU General Public License v3.0 or later (GPL‑3.0‑or‑later).
