@@ -2,6 +2,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <cstdint>
 
 #include "gdsqlite/sqlite/sqlite3.h"
 #include "sqlite_db.h"
@@ -128,7 +129,7 @@ void SQLiteDB::Stmt::bind_double(int idx, double val) {
 	sqlite3_bind_double(stmt_, idx, val);
 }
 
-void SQLiteDB::Stmt::bind_blob(int idx, const void *val, uint size) {
+void SQLiteDB::Stmt::bind_blob(int idx, const void *val, size_t size) {
 	if (!stmt_) {
 		return;
 	}
