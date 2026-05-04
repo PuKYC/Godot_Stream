@@ -111,9 +111,23 @@ sources = []
 sources += Glob("src/*.cpp")
 sources += Glob("src/core/components/*.cpp")
 sources += Glob("src/core/stream/*.cpp")
-sources += Glob("gdsqlite/*.cpp")
-sources += Glob("gdsqlite/sqlite/*.c")
-sources += Glob("gdsqlite/vfs/*.cpp")
+
+# ===== gdsqlite 源文件 =====
+# macOS universal 构建时，对纯 C 文件（sqlite3.c）显式注入 -arch 双架构 flag。
+# 原因：godot-cpp 的 universal arch flag 可能仅写入 CXXFLAGS（C++ 专用），
+# 导致 .c 文件只编译出 arm64 切片，链接 universal dylib 时 x86_64 符号缺失。
+# .cpp 文件与主 env 共用，行为不变；.c 文件单独 Clone 一个 env 强制指定。
+_gdsqlite_cpp = Glob("gdsqlite/*.cpp") + Glob("gdsqlite/vfs/*.cpp")
+_gdsqlite_c   = Glob("gdsqlite/sqlite/*.c")
+
+if env["platform"] == "macos" and env.get("arch", "") == "universal":
+    _sqlite_c_env = env.Clone()
+    _sqlite_c_env.Append(CCFLAGS=["-arch", "x86_64", "-arch", "arm64"])
+    sources += _gdsqlite_cpp
+    sources += [_sqlite_c_env.SharedObject(f) for f in _gdsqlite_c]
+else:
+    sources += _gdsqlite_cpp
+    sources += _gdsqlite_c
 
 # ===== 文档数据（仅 debug / editor 目标）=====
 if env["target"] in ["editor", "template_debug"]:
