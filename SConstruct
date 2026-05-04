@@ -73,11 +73,6 @@ if env.get("is_msvc", False):
 else:
     env.Append(CXXFLAGS=["-std=c++20"])
 
-# ===== 异常处理 =====
-# Android NDK 和 Emscripten 默认关闭 C++ 异常，需显式启用。
-# 其他平台（Linux / macOS / Windows）默认启用，无需额外设置。
-if env["platform"] in ["android", "web"]:
-    env.Append(CXXFLAGS=["-fexceptions"])
 
 # ===== 链接器优化 =====
 # --gc-sections 消除未使用的代码段，仅 GNU ld（Linux / Android）支持。
