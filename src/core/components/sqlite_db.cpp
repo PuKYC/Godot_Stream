@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-#include "godot-sqlist/src/sqlite/sqlite3.h"
+#include "gdsqlite/sqlite/sqlite3.h"
 #include "sqlite_db.h"
 
 #include <godot_cpp/classes/file_access.hpp>

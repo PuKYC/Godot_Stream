@@ -1,6 +1,6 @@
 #include "stream_sqlite_db.h"
 
-StreamSqliteDB::StreamSqliteDB(const std::string &path, bool read_only) : db(path, read_only), chunk_cache(500) {
+StreamSqliteDB::StreamSqliteDB(const std::string &path, bool read_only) : db(path, read_only), chunk_cache(500, caches::LRUCachePolicy<Chunk>{}) {
 	if (!is_database()) {
 		clear_and_create_table();
 

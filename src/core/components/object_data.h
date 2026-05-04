@@ -3,6 +3,7 @@
 #include <godot_cpp/variant/string.hpp>
 #include <godot_cpp/variant/aabb.hpp>
 #include <godot_cpp/variant/node_path.hpp>
+#include <godot_cpp/core/object_id.hpp>
 
 #include <uuid.h>
 

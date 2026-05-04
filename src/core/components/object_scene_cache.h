@@ -17,7 +17,7 @@ public:
 	using NodeEvictCallback = std::function<void(Node *)>;
 
 	explicit ObjectSceneCache(size_t scene_capacity = 16, size_t node_capacity = 32);
-	~ObjectSceneCache();
+	~ObjectSceneCache() = default;
 
 	// 禁止拷贝，允许移动
 	ObjectSceneCache(const ObjectSceneCache &) = delete;
@@ -49,11 +49,6 @@ public:
 
 	// 淘汰回调
 	void set_node_evict_callback(NodeEvictCallback callback);
-
-	// 缓存清理
-	void clear();
-	void clear_nodes();
-	void clear_scenes();
 
 	size_t node_cache_size() const noexcept;
 	size_t scene_cache_size() const noexcept;

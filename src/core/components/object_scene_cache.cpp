@@ -4,9 +4,8 @@
 using namespace godot;
 
 ObjectSceneCache::ObjectSceneCache(size_t scene_cap, size_t node_cap) :
-		node_cache_(node_cap, [](uuids::uuid uuid, Node *node) { evict_node(node); }),
-		scene_cache_(scene_cap),
-{
+		node_cache_(node_cap, caches::LRUCachePolicy<uuids::uuid>{}, [this](uuids::uuid, Node *node) { this->evict_node(node); }),
+		scene_cache_(scene_cap, caches::LRUCachePolicy<uuids::uuid>{}) {
 	node_cache_capacity = node_cap;
 	scene_cache_capacity = scene_cap;
 	node_evict_ = [](Node *node) {
@@ -15,25 +14,8 @@ ObjectSceneCache::ObjectSceneCache(size_t scene_cap, size_t node_cap) :
 	};
 }
 
-ObjectSceneCache::~ObjectSceneCache() {
-	clear();
-}
-
 void ObjectSceneCache::set_node_evict_callback(NodeEvictCallback callback) {
 	node_evict_ = std::move(callback);
-}
-
-void ObjectSceneCache::clear() {
-	clear_nodes();
-	clear_scenes();
-}
-
-void ObjectSceneCache::clear_nodes() {
-	node_cache_ = lru_cache_t<String, Node *>(node_cache_capacity, [](uuids::uuid uuid, Node *node) { evict_node(node); });
-}
-
-void ObjectSceneCache::clear_scenes() {
-	scene_cache_ = lru_cache_t<String, Ref<PackedScene>>(scene_cache_capacity);
 }
 
 size_t ObjectSceneCache::node_cache_size() const noexcept {
@@ -66,8 +48,10 @@ Node *ObjectSceneCache::acquire(const uuids::uuid &uuid, const String &scene_pat
 void ObjectSceneCache::release(const uuids::uuid &uuid, Node *node) {
 	if (!node)
 		return;
-	if (auto old = node_cache_.TryTryGet(uuid)) {
-		evict_node(old.value());
+	
+	auto old = node_cache_.TryGet(uuid);
+	if (old.second) {
+		evict_node(old.first);
 	}
 	node_cache_.Put(uuid, node);
 }
@@ -126,7 +110,7 @@ void ObjectSceneCache::store_scene(const uuids::uuid &uuid, const Ref<PackedScen
 }
 
 Ref<PackedScene> ObjectSceneCache::get_scene(const uuids::uuid &uuid) const {
-	return scene_cache_.TryGet(uuid);
+	return scene_cache_.TryGet(uuid).first;
 }
 
 void ObjectSceneCache::remove_scene(const uuids::uuid &uuid) {
