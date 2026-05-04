@@ -101,7 +101,7 @@ for opt in options:
     if env.get(opt.key, False):
         env.Append(CPPDEFINES=[opt.define])
 
-env.Append(CPPPATH=["src"])
+env.Append(CPPPATH=["src","src/gdsqlite"])
 
 # 强制启用 SQLite R*Tree 模块
 env.Append(CPPDEFINES=["SQLITE_ENABLE_RTREE"])
