@@ -1,5 +1,4 @@
 #include "stream_manager.h"
-#include "stream_object.h"
 
 #include <godot_cpp/classes/dir_access.hpp>
 #include <godot_cpp/classes/engine.hpp>
@@ -60,7 +59,7 @@ void StreamManager::_process(double delta) {
 				StreamObjectNode *node = Object::cast_to<StreamObjectNode>(
 						ObjectDB::get_instance(node_id));
 				if (node && node->is_inside_tree()) {
-					it->second.world_aabb = node->get_total_aabb();
+				
 					to_upsert_.insert(uuid); // 标记为需写库
 				}
 			}
@@ -135,7 +134,6 @@ void StreamManager::add_object(StreamObjectNode *node) {
 	// 设置父 UUID（从节点读取，已经是序列化的结果）
 	ObjectData data;
 	data.parent_uuid = node->get_parent_uuid();
-	data.world_aabb = node->get_total_aabb();
 	data.node_root = node->get_instance_id();
 
 	// 计算 chunk_id（需要 world_aabb，这里同步计算）
@@ -212,7 +210,6 @@ void StreamManager::update_object(StreamObjectNode *node) {
 		return;
 
 	// 更新 AABB 和 node_root（以防节点重新创建）
-	registry_[uuid].world_aabb = node->get_total_aabb();
 	registry_[uuid].node_root = node->get_instance_id();
 
 	// parent_uuid 可能变化，处理父子关系迁移

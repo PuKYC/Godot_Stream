@@ -1,5 +1,7 @@
 #include "stream_object.h"
 
+#include "uuid.h"
+
 #include <godot_cpp/classes/engine.hpp>
 #include <godot_cpp/classes/scene_tree.hpp>
 #include <godot_cpp/classes/visual_instance3d.hpp>
@@ -40,7 +42,8 @@ void StreamObjectNode::_notification(int p_what) {
 	emit_signal("object_aabb_changed");
 }
 
-AABB StreamObjectNode::get_total_aabb() const {
+// 仅获取自身aabb 不包括子对象
+AABB StreamObjectNode::get_aabb() const {
 	AABB total;
 
 	// 1. 合并 aabb_sources 中指定的视觉实例（已在场景树中）

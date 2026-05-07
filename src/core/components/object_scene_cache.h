@@ -10,7 +10,7 @@
 #include "core/caches.h"
 #include "uuid.h"
 
-using namespace godot;
+namespace godot {
 
 class ObjectSceneCache {
 public:
@@ -72,3 +72,5 @@ private:
 	lru_cache_t<uuids::uuid, Ref<PackedScene>> scene_cache_;
 	NodeEvictCallback node_evict_;
 };
+
+}
