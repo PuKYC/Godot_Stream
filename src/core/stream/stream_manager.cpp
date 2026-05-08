@@ -47,27 +47,7 @@ void StreamManager::_process(double delta) {
 		++loads;
 	}
 
-	// 4. 统一处理脏 AABB（延迟更新策略）
-	if (!dirty_aabb_.empty()) {
-		for (const auto &uuid : dirty_aabb_) {
-			auto it = registry_.find(uuid);
-			if (it == registry_.end())
-				continue;
-			// 通过 ObjectID 找回节点（已加载）
-			const ObjectID &node_id = it->second.node_root;
-			if (node_id.is_valid()) {
-				StreamObjectNode *node = Object::cast_to<StreamObjectNode>(
-						ObjectDB::get_instance(node_id));
-				if (node && node->is_inside_tree()) {
-				
-					to_upsert_.insert(uuid); // 标记为需写库
-				}
-			}
-		}
-		dirty_aabb_.clear();
-	}
-
-	// 5. 批量数据库同步
+	// 4. 批量数据库同步（含脏 AABB 处理）
 	_flush_pending_db_ops();
 }
 
@@ -441,38 +421,122 @@ String StreamManager::_object_scene_path(const uuids::uuid &uuid) const {
 void StreamManager::_flush_pending_db_ops() {
 	if (!db_worker_.is_valid())
 		return;
-	if (to_upsert_.empty() && to_remove_.empty())
+	if (to_upsert_.empty() && to_remove_.empty() && dirty_aabb_.empty())
 		return;
 
-	auto upsert = std::make_shared<a_hashset<uuids::uuid>>(std::move(to_upsert_));
+	// --- 正常 upsert：在主线程捕获 ObjectData（避免 DB 线程访问 registry_） ---
+	auto upsert_data = std::make_shared<std::vector<std::pair<uuids::uuid, ObjectData>>>();
+	for (const auto &uuid : to_upsert_) {
+		auto it = registry_.find(uuid);
+		if (it != registry_.end())
+			upsert_data->emplace_back(uuid, it->second);
+	}
 	to_upsert_.clear();
+
 	auto remove = std::make_shared<a_hashset<uuids::uuid>>(std::move(to_remove_));
 	to_remove_.clear();
 
+	// --- 脏 AABB：在主线程捕获 AABB 快照 ---
+	auto dirty_data = std::make_shared<a_hashmap<uuids::uuid, godot::AABB>>();
+	for (const auto &uuid : dirty_aabb_) {
+		auto it = registry_.find(uuid);
+		if (it == registry_.end())
+			continue;
+		const ObjectID &node_id = it->second.node_root;
+		if (node_id.is_valid()) {
+			StreamObjectNode *node = Object::cast_to<StreamObjectNode>(
+					ObjectDB::get_instance(node_id));
+			if (node && node->is_inside_tree())
+				(*dirty_data)[uuid] = node->get_aabb();
+		}
+	}
+	dirty_aabb_.clear();
+
+	if (upsert_data->empty() && remove->empty() && dirty_data->empty())
+		return;
+
+	auto dirty_result = std::make_shared<a_hashmap<uuids::uuid, int>>();
+
 	db_worker_->push_task({
-			[upsert, remove, this](StreamSqliteDB &db) {
-				// 执行删除
-				for (const auto &uuid : *remove) {
+			[upsert_data, remove, dirty_data, dirty_result](StreamSqliteDB &db) {
+				// ① 删除
+				for (const auto &uuid : *remove)
 					db.remove_object(uuid);
-				}
-				// 执行更新/插入
-				for (const auto &uuid : *upsert) {
-					auto it = registry_.find(uuid);
-					if (it == registry_.end())
-						continue;
-					// 需要计算 chunk_id：方法1. 通过 db 提供的 upsert_object 自动处理；
-					// 方法2. 我们在这里计算 chunk 并调用 upsert_object 传入。
-					// 由于 StreamSqliteDB::upsert_object 接受 ObjectData，内部应该调用 query_chunk。
-					// 因此我们直接传入 ObjectData，但 chunk_id 此时可能为 -1。
-					// 修改 upsert_object 使其在传入 -1 时自动计算 chunk。
-					db.upsert_object(uuid, it->second);
+
+				// ② 正常 upsert
+				for (const auto &[uuid, data] : *upsert_data)
+					db.upsert_object(uuid, data);
+
+				// ③ 阶段一：批量更新所有脏 AABB（确保子对象数据最新）
+				for (const auto &[uuid, aabb] : *dirty_data)
+					db.set_object_aabb(uuid, aabb);
+
+				// ④ 阶段二：基于已更新 AABB 计算聚合包围盒并生成 chunk
+				for (const auto &[uuid, aabb] : *dirty_data) {
+					// 聚合自身与所有子对象的 AABB
+					godot::AABB agg_aabb = aabb;
+					for (const auto &[child, ca] : db.query_children_aabb(uuid)) {
+						if (!(ca.size.x == 0 && ca.size.y == 0 && ca.size.z == 0
+							&& ca.position.x == 0 && ca.position.y == 0 && ca.position.z == 0))
+							agg_aabb = agg_aabb.merge(ca);
+					}
+
+					Chunk chunk = Chunk::compute_chunk(agg_aabb);
+					int new_chunk_id = db.query_chunk(chunk);
+
+					ObjectData obj_data = db.query_object(uuid);
+					obj_data.chunk_id = new_chunk_id;
+					db.upsert_object(uuid, obj_data);
+					(*dirty_result)[uuid] = new_chunk_id;
+
+					// 沿父链向上更新祖先 chunk_id
+					uuids::uuid parent = obj_data.parent_uuid;
+					int depth = 0;
+					const int MAX_DEPTH = 64;
+					while (!parent.is_nil() && depth < MAX_DEPTH) {
+						ObjectData parent_data = db.query_object(parent);
+						if (parent_data.chunk_id == -1)
+							break;
+
+						// 聚合祖先的 AABB（自身 + 所有子对象）
+						godot::AABB parent_agg = db.get_object_aabb(parent);
+						for (const auto &[child, ca] : db.query_children_aabb(parent)) {
+							if (!(ca.size.x == 0 && ca.size.y == 0 && ca.size.z == 0
+								&& ca.position.x == 0 && ca.position.y == 0 && ca.position.z == 0))
+								parent_agg = parent_agg.merge(ca);
+						}
+
+						// 父对象 AABB 从未写入（所有字段 NULL），跳过整个父链
+						if (parent_agg.size.x == 0 && parent_agg.size.y == 0 && parent_agg.size.z == 0
+							&& parent_agg.position.x == 0 && parent_agg.position.y == 0 && parent_agg.position.z == 0)
+							break;
+						Chunk parent_chunk = Chunk::compute_chunk(parent_agg);
+						int parent_chunk_id = db.query_chunk(parent_chunk);
+
+						if (parent_chunk_id == parent_data.chunk_id)
+							break;
+
+						parent_data.chunk_id = parent_chunk_id;
+						db.upsert_object(parent, parent_data);
+						(*dirty_result)[parent] = parent_chunk_id;
+
+						parent = parent_data.parent_uuid;
+						++depth;
+					}
 				}
 			},
-			[]() {} // 完成回调（空）
+			[this, dirty_result]() {
+				// 主线程回调：同步 chunk_id 到 registry_
+				for (const auto &[uuid, chunk_id] : *dirty_result) {
+					auto it = registry_.find(uuid);
+					if (it != registry_.end())
+						it->second.chunk_id = chunk_id;
+				}
+			}
 	});
 }
 
-// ---------- 属性绑定 ----------
+// 属性绑定
 void StreamManager::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_database_path", "path"), &StreamManager::set_database_path);
 	ClassDB::bind_method(D_METHOD("get_database_path"), &StreamManager::get_database_path);

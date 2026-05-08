@@ -28,6 +28,8 @@ public:
     // 新增：设置 / 获取对象的 AABB（带 LRU 缓存）
     void set_object_aabb(const uuids::uuid &uuid, const godot::AABB &aabb);
     godot::AABB get_object_aabb(const uuids::uuid &uuid);
+    // 按 parent_uuid 查询所有子对象的 uuid 和 AABB
+    std::vector<std::pair<uuids::uuid, godot::AABB>> query_children_aabb(const uuids::uuid &parent_uuid);
 
     SQLiteDB db;
 
@@ -48,6 +50,7 @@ private:
 
     SQLiteDB::Stmt sql_set_object_aabb;
     SQLiteDB::Stmt sql_get_object_aabb;
+    SQLiteDB::Stmt sql_query_children_aabb;
 
     void update_info(std::string version);
 

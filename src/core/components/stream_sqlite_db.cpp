@@ -74,6 +74,13 @@ StreamSqliteDB::StreamSqliteDB(const std::string &path, bool read_only)
         WHERE uuid = ?;
     )");
 
+    // 按 parent_uuid 查询所有子对象的 uuid 和 AABB
+    sql_query_children_aabb = SQLiteDB::Stmt(db, R"(
+        SELECT uuid, minX, maxX, minY, maxY, minZ, maxZ
+        FROM object_uuid
+        WHERE parent_uuid = ?;
+    )");
+
     db.exec("PRAGMA foreign_keys = ON;");
 }
 
@@ -363,4 +370,27 @@ godot::AABB StreamSqliteDB::read_aabb_from_stmt(SQLiteDB::Stmt &stmt, int col_st
     );
     // godot::AABB 使用 position + size 构造，这里转换为尺寸
     return godot::AABB(min_pos, max_pos - min_pos);
+}
+
+// --------------------- query_children_aabb ---------------------
+
+std::vector<std::pair<uuids::uuid, godot::AABB>> StreamSqliteDB::query_children_aabb(const uuids::uuid &parent_uuid) {
+    std::vector<std::pair<uuids::uuid, godot::AABB>> result;
+
+    sql_query_children_aabb.bind_blob(1, &parent_uuid, sizeof(uuids::uuid));
+
+    while (sql_query_children_aabb.step()) {
+        const void *blob = sql_query_children_aabb.get_blob(0);
+        if (!blob) continue;
+        uuids::uuid child_uuid = *static_cast<const uuids::uuid *>(blob);
+
+        godot::AABB child_aabb;
+        if (!sql_query_children_aabb.is_null(1))
+            child_aabb = read_aabb_from_stmt(sql_query_children_aabb, 1);
+
+        result.emplace_back(child_uuid, child_aabb);
+    }
+
+    stmt_finish(sql_query_children_aabb);
+    return result;
 }
