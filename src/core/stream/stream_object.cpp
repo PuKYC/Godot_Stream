@@ -95,7 +95,7 @@ void StreamObjectNode::_bind_methods() {
 				 "set_aabb_sources", "get_aabb_sources");
 
 	MethodInfo object_aabb_changed;
-	object_aabb_changed.name = "myself_signal";
+	object_aabb_changed.name = "object_aabb_changed";
 	object_aabb_changed.arguments.push_back(PropertyInfo(Variant::OBJECT, "this"));
 	ADD_SIGNAL(object_aabb_changed);
 }

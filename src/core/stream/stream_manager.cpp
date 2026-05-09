@@ -44,6 +44,7 @@ void StreamManager::_process(double delta) {
 		uuids::uuid uuid = load_queue_.front();
 		load_queue_.pop();
 		_load_object_scene(uuid);
+		
 		++loads;
 	}
 
@@ -132,6 +133,8 @@ void StreamManager::add_object(StreamObjectNode *node) {
 		children_map_[data.parent_uuid].insert(uuid);
 
 	to_upsert_.insert(uuid);
+
+	_connect_node_signals(node);
 }
 
 void StreamManager::remove_object(const uuids::uuid &uuid) {
@@ -225,7 +228,8 @@ a_hashset<uuids::uuid> StreamManager::_collect_descendants(const uuids::uuid &ro
 
 void StreamManager::_connect_node_signals(StreamObjectNode *node) {
 	node->connect("object_aabb_changed", Callable(this, "_on_object_aabb_changed").bind(node));
-	
+	node->connect("object_entered", Callable(this, "_on_object_entered").bind(node));
+	node->connect("object_exited", Callable(this, "_on_object_exited").bind(node));
 }
 
 String StreamManager::derive_object_dir(const String &db_path) const {
@@ -247,7 +251,6 @@ void StreamManager::_on_object_entered(StreamObjectNode *node) {
 	if (registry_.count(uuid)) {
 		registry_[uuid].node_root = node->get_instance_id();
 		// 重新连接信号（因为之前的连接已随节点删除而断开）
-		_connect_node_signals(node);
 		return;
 	}
 }
@@ -346,7 +349,8 @@ void StreamManager::_load_object_scene(const uuids::uuid &uuid) {
 	// 设置所有者并挂载
 	node->set_owner(this);
 	add_child(node);
-	// 节点进入树后会自动触发 object_entered_tree 信号，我们已在槽中处理注册连接
+	
+	_connect_node_signals(stream_node);
 }
 
 void StreamManager::_unload_object(const uuids::uuid &uuid) {
