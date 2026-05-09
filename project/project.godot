@@ -10,7 +10,16 @@ config_version=5
 
 [application]
 
-config/name="godot cpp template"
-run/main_scene="uid://b7he11nmgh4dc"
-config/features=PackedStringArray("4.6", "Forward Plus")
+config/name="新建游戏项目"
+config/features=PackedStringArray("4.6", "GL Compatibility")
 config/icon="res://icon.svg"
+
+[physics]
+
+3d/physics_engine="Jolt Physics"
+
+[rendering]
+
+rendering_device/driver.windows="d3d12"
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
