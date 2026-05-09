@@ -48,9 +48,9 @@ jobs:
           submodules: true
 
       - name: Setup Node.js 24
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: '24'
+          node-version: '24.x'
           check-latest: true
 
       #- name: Setup clang-format
