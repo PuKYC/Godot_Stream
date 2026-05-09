@@ -31,7 +31,7 @@ jobs:
             target-type: template_debug
             float-precision: single
             dev-build: yes
-          - target: { platform: linux, arch: arm64, os: ubuntu-22.04 }
+          - target: { platform: linux, arch: arm64, os: ubuntu-22.04-arm64 }
             target-type: template_debug
             float-precision: single
             dev-build: yes
@@ -50,7 +50,8 @@ jobs:
       - name: Setup Node.js 24
         uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: '24'
+          check-latest: true
 
       #- name: Setup clang-format
       #  shell: bash
