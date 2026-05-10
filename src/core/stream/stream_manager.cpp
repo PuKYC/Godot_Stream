@@ -11,7 +11,7 @@
 
 using namespace godot;
 
-// ---------- 构造 / 析构 ----------
+// 构造 / 析构
 StreamManager::StreamManager() : cache_(16, 32) {
 	// 缓存容量可后续调整为可配置属性
 }
@@ -30,14 +30,14 @@ void StreamManager::_ready() {
 }
 
 void StreamManager::_process(double delta) {
-	// 1. 异步数据库回调执行
+	// 异步数据库回调执行
 	if (db_worker_.is_valid())
 		db_worker_->flush_callbacks();
 
-	// 2. 轮询场景缓存异步加载状态
+	// 轮询场景缓存异步加载状态
 	cache_.update();
 
-	// 3. 处理待加载队列（分批进行，避免单帧负载过高）
+	// 处理待加载队列（分批进行，避免单帧负载过高）
 	const int MAX_LOADS_PER_FRAME = 4;
 	int loads = 0;
 	while (!load_queue_.empty() && loads < MAX_LOADS_PER_FRAME) {
@@ -48,7 +48,7 @@ void StreamManager::_process(double delta) {
 		++loads;
 	}
 
-	// 4. 批量数据库同步（含脏 AABB 处理）
+	// 批量数据库同步（含脏 AABB 处理）
 	_flush_pending_db_ops();
 }
 
@@ -101,7 +101,7 @@ void StreamManager::query_aabb(const AABB &aabb) {
 							} });
 }
 
-// ---------- 对象管理（由信号触发 不一定） ----------
+//  对象管理（由信号触发 不一定）
 void StreamManager::add_object(StreamObjectNode *node) {
 	if (!node)
 		return;
@@ -272,14 +272,14 @@ void StreamManager::_on_object_aabb_changed(StreamObjectNode *node) {
 	}
 }
 
-// ---------- 异步查询结果处理 ----------
+// 异步查询结果处理
 void StreamManager::_on_query_result(const a_hashmap<uuids::uuid, ObjectData> &db_objects) {
-	// 1. 构建新数据集的 UUID 集合
+	// 构建新数据集的 UUID 集合
 	a_hashset<uuids::uuid> new_set;
 	for (const auto &pair : db_objects)
 		new_set.insert(pair.first);
 
-	// 2. 卸载不再需要的对象
+	// 卸载不再需要的对象
 	std::vector<uuids::uuid> to_unload;
 	for (auto &pair : registry_) {
 		if (new_set.count(pair.first) == 0 && pair.second.node_root.is_valid()) {
@@ -290,7 +290,7 @@ void StreamManager::_on_query_result(const a_hashmap<uuids::uuid, ObjectData> &d
 		_unload_object(uuid); // 会保存场景并缓存
 	}
 
-	// 3. 合并数据库最新数据到注册表（保留 is_loaded 和 node_root 等运行时状态）
+	// 合并数据库最新数据到注册表（保留 is_loaded 和 node_root 等运行时状态）
 	for (const auto &pair : db_objects) {
 		const uuids::uuid &uuid = pair.first;
 		const ObjectData &db_data = pair.second;
@@ -306,7 +306,7 @@ void StreamManager::_on_query_result(const a_hashmap<uuids::uuid, ObjectData> &d
 		}
 	}
 
-	// 4. 重建 children_map
+	// 重建 children_map
 	children_map_.clear();
 	for (auto &pair : registry_) {
 		const uuids::uuid &parent = pair.second.parent_uuid;
@@ -314,7 +314,7 @@ void StreamManager::_on_query_result(const a_hashmap<uuids::uuid, ObjectData> &d
 			children_map_[parent].insert(pair.first);
 	}
 
-	// 5. 标记需要加载的根对象（父为空且未加载）
+	// 标记需要加载的根对象（父为空且未加载）
 	for (const auto &pair : registry_) {
 		if (pair.second.parent_uuid.is_nil() && !pair.second.node_root.is_valid()) {
 			load_queue_.push(pair.first);
@@ -357,7 +357,7 @@ void StreamManager::_unload_object(const uuids::uuid &uuid) {
     if (!registry_.count(uuid))
         return;
     
-    // 1. 收集所有子孙 UUID（包括自身），统一插入 pending_removal_
+    // 收集所有子孙 UUID（包括自身），统一插入 pending_removal_
     a_hashset<uuids::uuid> all_ids = _collect_descendants(uuid);
     for (const auto &id : all_ids)
         pending_removal_.insert(id);
@@ -428,7 +428,7 @@ void StreamManager::_flush_pending_db_ops() {
 	if (to_upsert_.empty() && to_remove_.empty() && dirty_aabb_.empty())
 		return;
 
-	// --- 正常 upsert：在主线程捕获 ObjectData（避免 DB 线程访问 registry_） ---
+	// 正常 upsert：在主线程捕获 ObjectData（避免 DB 线程访问 registry_） 
 	auto upsert_data = std::make_shared<std::vector<std::pair<uuids::uuid, ObjectData>>>();
 	for (const auto &uuid : to_upsert_) {
 		auto it = registry_.find(uuid);
@@ -440,7 +440,7 @@ void StreamManager::_flush_pending_db_ops() {
 	auto remove = std::make_shared<a_hashset<uuids::uuid>>(std::move(to_remove_));
 	to_remove_.clear();
 
-	// --- 脏 AABB：在主线程捕获 AABB 快照 ---
+	// 脏 AABB：在主线程捕获 AABB 快照
 	auto dirty_data = std::make_shared<a_hashmap<uuids::uuid, godot::AABB>>();
 	for (const auto &uuid : dirty_aabb_) {
 		auto it = registry_.find(uuid);
@@ -463,19 +463,19 @@ void StreamManager::_flush_pending_db_ops() {
 
 	db_worker_->push_task({
 			[upsert_data, remove, dirty_data, dirty_result](StreamSqliteDB &db) {
-				// ① 删除
+				// 删除
 				for (const auto &uuid : *remove)
 					db.remove_object(uuid);
 
-				// ② 正常 upsert
+				// 正常 upsert
 				for (const auto &[uuid, data] : *upsert_data)
 					db.upsert_object(uuid, data);
 
-				// ③ 阶段一：批量更新所有脏 AABB（确保子对象数据最新）
+				// 阶段一：批量更新所有脏 AABB（确保子对象数据最新）
 				for (const auto &[uuid, aabb] : *dirty_data)
 					db.set_object_aabb(uuid, aabb);
 
-				// ④ 阶段二：基于已更新 AABB 计算聚合包围盒并生成 chunk
+				// 阶段二：基于已更新 AABB 计算聚合包围盒并生成 chunk
 				for (const auto &[uuid, aabb] : *dirty_data) {
 					// 聚合自身与所有子对象的 AABB
 					godot::AABB agg_aabb = aabb;
@@ -544,7 +544,7 @@ void StreamManager::_flush_pending_db_ops() {
 void StreamManager::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_database_path", "path"), &StreamManager::set_database_path);
 	ClassDB::bind_method(D_METHOD("get_database_path"), &StreamManager::get_database_path);
-	ADD_PROPERTY(PropertyInfo(Variant::STRING, "database_path", PROPERTY_HINT_DIR), "set_database_path", "get_database_path");
+	ADD_PROPERTY(PropertyInfo(Variant::STRING, "database_path", PROPERTY_HINT_FILE, "*.db"), "set_database_path", "get_database_path");
 
 	ClassDB::bind_method(D_METHOD("query_aabb", "aabb"), &StreamManager::query_aabb);
 
