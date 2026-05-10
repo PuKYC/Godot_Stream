@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://b8o8ydqhshnli"]
+
+[node name="Node3D" type="Node3D" unique_id=1494622027]
+
+[node name="StreamManager" type="StreamManager" parent="." unique_id=335644912]
+database_path = "res://db_data"

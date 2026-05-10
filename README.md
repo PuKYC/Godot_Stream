@@ -30,16 +30,18 @@ It efficiently loads and unloads scene objects based on **AABB (Axis-Aligned Bou
 ## Requirements
 
 - Godot 4.x (built with GDExtension support)
-- C++17 compatible compiler
-- [stduuid](https://github.com/mariusbancila/stduuid) (header‑only UUID library)
+- C++20 compatible compiler
+- [stduuid](https://github.com/mariusbancila/stduuid) (header‑only UUID library) MIT
 - [SQLite3](https://www.sqlite.org/) (amalgamation or system library)
+- [godot-sqlite](https://github.com/2shady4u/godot-sqlite) (sqlite in godot) MIT
+- [ankerl::unordered_dense](https://github.com/martinus/unordered_dense) (A fast & densely stored hashmap) MIT
 - `godot-cpp` (same version as your Godot 4.x build)
 
 
 ## Building
 
 1. Clone this repository, including submodules:
-   ```bash
+```bash
    git clone --recurse-submodules <repo-url> stream_manager
    cd stream_manager
 ```
@@ -47,10 +49,10 @@ It efficiently loads and unloads scene objects based on **AABB (Axis-Aligned Bou
 1. Make sure you have Godot 4.x and its godot-cpp bindings.
       If you placed godot-cpp manually, adjust SConstruct accordingly.
 2. Build with SCons:
-   ```bash
+```bash
    scons platform=<your_platform>
    # Example: scons platform=linux
-   ```
+```
 3. Copy or symlink the resulting .gdextension file and the compiled libraries into your Godot project’s res:// directory.
       See the official GDExtension documentation for detailed steps.
 
@@ -123,4 +125,4 @@ aabb_sources Array of NodePaths to VisualInstance3D children used to calculate t
 
 License
 
-This project is licensed under the GNU General Public License v3.0 or later (GPL‑3.0‑or‑later).
+GPL‑3.0‑or‑later.
