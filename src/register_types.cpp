@@ -23,7 +23,7 @@ void initialize_gdextension_types(ModuleInitializationLevel p_level) {
 
 	GDREGISTER_CLASS(StreamObjectNode);
 	GDREGISTER_CLASS(StreamManager);
-	GDREGISTER_CLASS(AsyncDbWorker);
+	GDREGISTER_ABSTRACT_CLASS(AsyncDbWorker);
 }
 
 void uninitialize_gdextension_types(ModuleInitializationLevel p_level) {

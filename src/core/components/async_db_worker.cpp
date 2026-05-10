@@ -61,3 +61,6 @@ void AsyncDbWorker::thread_loop() {
 		}
 	}
 }
+
+void AsyncDbWorker::_bind_methods() {
+}
