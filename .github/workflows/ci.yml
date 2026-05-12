@@ -15,37 +15,30 @@ jobs:
             target-type: template_debug
             float-precision: single
             dev-build: yes
-            compile-flags: ""
           - target: { platform: windows, arch: x86_64, os: windows-latest }
             target-type: template_debug
             float-precision: single
             dev-build: yes
-            compile-flags: "/Z7"
           - target: { platform: macos, arch: universal, os: macos-latest }
             target-type: template_debug
             float-precision: single
             dev-build: yes
-            compile-flags: ""
           - target: { platform: android, arch: arm64, os: ubuntu-22.04 }
             target-type: template_debug
             float-precision: single
             dev-build: yes
-            compile-flags: ""
           - target: { platform: android, arch: x86_64, os: ubuntu-22.04 }
             target-type: template_debug
             float-precision: single
             dev-build: yes
-            compile-flags: ""
           - target: { platform: linux, arch: arm64, os: ubuntu-22.04-arm }
             target-type: template_debug
             float-precision: single
             dev-build: yes
-            compile-flags: ""
           - target: { platform: web, arch: wasm32, os: ubuntu-22.04 }
             target-type: template_debug
             float-precision: single
             dev-build: yes
-            compile-flags: ""
 
     runs-on: ${{ matrix.target.os }}
     steps:
@@ -86,11 +79,19 @@ jobs:
           scons-cache: ${{ github.workspace }}/.scons-cache/
           cache-name: ${{ matrix.target.platform }}_${{ matrix.target.arch }}_${{ matrix.float-precision }}_${{ matrix.target-type }}
 
+      # ✅ 仅在 Windows 上：强制将所有 /Zi 替换为 /Z7
+      - name: Force /Z7 debug format on Windows
+        if: ${{ matrix.target.platform == 'windows' }}
+        shell: bash
+        run: |
+          sed -i 's/-Zi/-Z7/g; s|/Zi|/Z7|g' SConstruct
+          # 如果 godot-cpp 的构建选项在其他文件（如 methods.py）里也写了 /Zi，可一并替换
+          find godot-cpp -type f \( -name "*.py" -o -name "SConstruct" \) -exec sed -i 's|-Zi|-Z7|g; s|/Zi|/Z7|g' {} \;
+
       - name: Build GDExtension (${{ matrix.target-type }})
         shell: sh
         env:
           SCONS_CACHE: ${{ github.workspace }}/.scons-cache/
-          CCFLAGS: ${{ matrix.compile-flags }}
         run: |
           scons target=${{ matrix.target-type }} platform=${{ matrix.target.platform }} arch=${{ matrix.target.arch }} precision=${{ matrix.float-precision }} dev_build=${{ matrix.dev-build }}
 
