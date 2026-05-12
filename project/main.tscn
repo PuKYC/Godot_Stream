@@ -1,6 +1,15 @@
 [gd_scene format=3 uid="uid://b8o8ydqhshnli"]
 
+[sub_resource type="BoxMesh" id="BoxMesh_7dm0k"]
+
 [node name="Node3D" type="Node3D" unique_id=1494622027]
 
 [node name="StreamManager" type="StreamManager" parent="." unique_id=335644912]
-database_path = "res://db_data"
+database_path = "res://db_data/test.db"
+
+[node name="StreamObjectNode" type="StreamObjectNode" parent="StreamManager" unique_id=295590504]
+uuid = "513668c2-0d9e-44d8-8b75-e0717fa40c50"
+aabb_sources = Array[NodePath]([NodePath("MeshInstance3D")])
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="StreamManager/StreamObjectNode" unique_id=59485430]
+mesh = SubResource("BoxMesh_7dm0k")

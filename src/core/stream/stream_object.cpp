@@ -39,7 +39,7 @@ void StreamObjectNode::_notification(int p_what) {
 		return;
 
 	// 可选：在编辑器中检测子节点变化以更新 aabb_sources 的显示，这里略
-	emit_signal("object_aabb_changed");
+	emit_signal("object_aabb_changed", this);
 }
 
 // 仅获取自身aabb 不包括子对象
@@ -91,7 +91,7 @@ void StreamObjectNode::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_aabb_sources", "arr"), &StreamObjectNode::set_aabb_sources);
 	ClassDB::bind_method(D_METHOD("get_aabb_sources"), &StreamObjectNode::get_aabb_sources);
 	ADD_PROPERTY(PropertyInfo(Variant::ARRAY, "aabb_sources", PROPERTY_HINT_NONE, "",
-							  PROPERTY_USAGE_STORAGE),
+							  PROPERTY_USAGE_STORAGE | PROPERTY_USAGE_EDITOR),
 				 "set_aabb_sources", "get_aabb_sources");
 
 	MethodInfo object_aabb_changed;

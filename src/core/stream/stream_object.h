@@ -26,7 +26,7 @@ public:
 	uuids::uuid get_parent_uuid() const { return parent_uuid; }
 
 	String get_uuid_str() const { return uuids::to_string(uuid).c_str(); }
-	String get_parent_uuid_str() const { return uuids::to_string(uuid).c_str(); }
+	String get_parent_uuid_str() const { return uuids::to_string(parent_uuid).c_str(); }
 
 	// 总包围盒（仅包含自身）
 	AABB get_aabb() const;

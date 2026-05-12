@@ -72,13 +72,14 @@ private:
 	a_hashset<uuids::uuid> dirty_aabb_;
 
 	// 内部方法
+	static uuids::uuid _generate_uuid();
 	void _connect_node_signals(StreamObjectNode *node);
 	String derive_object_dir(const String &db_path) const;
 
 	// 信号回调
 	void _on_object_aabb_changed(StreamObjectNode *node);	// aabb改变时
-	void _on_object_entered(StreamObjectNode *node);	// 进入场景树时
-	void _on_object_exited(StreamObjectNode *node);		// 离开场景树时
+	void _on_object_entered(Node *node);	// 进入场景树时
+	void _on_object_exited(Node *node);		// 离开场景树时
 
 	// 异步查询完成回调
 	void _on_query_result(const a_hashmap<uuids::uuid, ObjectData> &db_objects);
