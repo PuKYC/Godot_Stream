@@ -14,6 +14,10 @@ public:
 	StreamWorldProbe() = default;
 	~StreamWorldProbe() = default;
 
+	void _ready() override;
+	void _enter_tree() override;
+	void _exit_tree() override;
+
 	void set_aabb(const AABB &aabb);
 	AABB get_aabb() const;
 
@@ -22,10 +26,6 @@ public:
 
 protected:
 	void _on_visibility_changed();
-
-	void _ready() override;
-	void _enter_tree() override;
-	void _exit_tree() override;
 
 	void _connect_manager_signals();
 
