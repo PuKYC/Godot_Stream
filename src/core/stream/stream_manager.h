@@ -4,8 +4,10 @@
 #include <godot_cpp/variant/aabb.hpp>
 #include <godot_cpp/variant/node_path.hpp>
 #include <godot_cpp/variant/string.hpp>
+#include <godot_cpp/core/object_id.hpp>
 
 #include "stream_object.h"
+#include "stream_world_probe.h"
 
 #include "../components/async_db_worker.h"
 #include "../components/chunk.h"
@@ -18,9 +20,8 @@
 #include <vector>
 
 namespace godot {
-	
-class StreamObjectNode;
 
+class StreamObjectNode;
 
 class StreamManager : public Node3D {
 	GDCLASS(StreamManager, Node3D)
@@ -36,7 +37,13 @@ public:
 	void set_database_path(const String &path);
 	String get_database_path() const;
 
-	void query_aabb(const AABB &aabb);
+	// object信号回调
+	void _on_object_aabb_changed(StreamObjectNode *node); // aabb改变时
+	void _on_object_entered(Node *node); // 进入场景树时
+	void _on_object_exited(Node *node); // 离开场景树时
+	// probe信号回调
+	void _on_load_probe(StreamWorldProbe *probe);
+	void _on_unload_probe(StreamWorldProbe *probe);
 
 	// 对象管理（由 StreamObjectNode 信号触发）
 	void add_object(StreamObjectNode *node); // 可能通过 manager通知触发
@@ -64,22 +71,22 @@ private:
 	a_hashmap<uuids::uuid, a_hashset<uuids::uuid>> children_map_;
 
 	a_hashset<uuids::uuid> pending_removal_; // manager删除标志位
-	a_hashset<uuids::uuid> _collect_descendants(const uuids::uuid &root) const; // 收集子对象
 
 	// 待同步脏数据（主线程收集）
 	a_hashset<uuids::uuid> to_upsert_;
 	a_hashset<uuids::uuid> to_remove_;
 	a_hashset<uuids::uuid> dirty_aabb_;
 
+	// 已注册probe
+	a_hashset<uint64_t> registered_probes_;
+
 	// 内部方法
 	static uuids::uuid _generate_uuid();
 	void _connect_node_signals(StreamObjectNode *node);
-	String derive_object_dir(const String &db_path) const;
-
-	// 信号回调
-	void _on_object_aabb_changed(StreamObjectNode *node);	// aabb改变时
-	void _on_object_entered(Node *node);	// 进入场景树时
-	void _on_object_exited(Node *node);		// 离开场景树时
+	String _derive_object_dir(const String &db_path) const;
+	a_hashset<uuids::uuid> _collect_descendants(const uuids::uuid &root) const; // 收集子对象
+	void _query_aabb(std::vector<AABB> &aabbs);
+	void _query_aabb(const AABB &aabb);
 
 	// 异步查询完成回调
 	void _on_query_result(const a_hashmap<uuids::uuid, ObjectData> &db_objects);
@@ -105,4 +112,4 @@ private:
 	void _flush_pending_db_ops();
 };
 
-}
+} //namespace godot

@@ -6,6 +6,7 @@
 #include <godot_cpp/classes/packed_scene.hpp>
 #include <godot_cpp/classes/resource_loader.hpp>
 #include <godot_cpp/classes/resource_saver.hpp>
+#include <godot_cpp/core/object_id.hpp>
 #include <godot_cpp/variant/typed_array.hpp>
 #include <godot_cpp/variant/variant.hpp>
 
@@ -54,11 +55,25 @@ void StreamManager::_process(double delta) {
 
 	// 批量数据库同步（含脏 AABB 处理）
 	_flush_pending_db_ops();
+
+	static uint8_t query_process;
+	query_process++;
+	if (query_process >= 3) {
+		std::vector<AABB> query_aabbs;
+		for (auto id : registered_probes_) {
+			StreamWorldProbe *probe = Object::cast_to<StreamWorldProbe>(ObjectDB::get_instance(id));
+			query_aabbs.push_back(probe->get_aabb());
+		}
+
+		_query_aabb(query_aabbs);
+
+		query_process = 0;
+	}
 }
 
 // 数据库初始化
 void StreamManager::_init_database(const String &path) {
-	object_scene_dir_ = derive_object_dir(path);
+	object_scene_dir_ = _derive_object_dir(path);
 
 	// 确保目录存在
 	if (!DirAccess::dir_exists_absolute(object_scene_dir_)) {
@@ -82,7 +97,7 @@ void StreamManager::_init_database(const String &path) {
 	// 此处略，实际可在 worker 创建后提交一个查询任务，在回调中填充 registry_
 }
 
-// ---------- 公开接口 ----------
+// 公开接口
 void StreamManager::set_database_path(const String &path) {
 	database_path_ = path;
 	// 若已运行，应立即初始化数据库
@@ -94,7 +109,7 @@ String StreamManager::get_database_path() const {
 	return database_path_;
 }
 
-void StreamManager::query_aabb(const AABB &aabb) {
+void StreamManager::_query_aabb(const AABB &aabb) {
 	auto result_ptr = std::make_shared<a_hashmap<uuids::uuid, ObjectData>>();
 	db_worker_->push_task({ [aabb, result_ptr](StreamSqliteDB &db) {
 							   // 将查询结果赋值给 shared_ptr 指向的 map
@@ -230,6 +245,17 @@ a_hashset<uuids::uuid> StreamManager::_collect_descendants(const uuids::uuid &ro
 	return result;
 }
 
+void godot::StreamManager::_query_aabb(std::vector<AABB> &aabbs) {
+	auto result_ptr = std::make_shared<a_hashmap<uuids::uuid, ObjectData>>();
+	db_worker_->push_task({ [aabbs, result_ptr](StreamSqliteDB &db) {
+							   // 将查询结果赋值给 shared_ptr 指向的 map
+							   *result_ptr = db.query_objects(aabbs);
+						   },
+							[this, result_ptr]() {
+								_on_query_result(*result_ptr);
+							} });
+}
+
 uuids::uuid godot::StreamManager::_generate_uuid() {
 	static thread_local std::random_device rd;
 	static thread_local std::mt19937 gen(rd());
@@ -238,10 +264,10 @@ uuids::uuid godot::StreamManager::_generate_uuid() {
 }
 
 void StreamManager::_connect_node_signals(StreamObjectNode *node) {
-	node->connect("object_aabb_changed", callable_mp(this, &StreamManager::_on_object_aabb_changed));
+	node->connect("object_aabb_changed", callable_mp(this, &StreamManager::_on_object_aabb_changed), CONNECT_APPEND_SOURCE_OBJECT);
 }
 
-String StreamManager::derive_object_dir(const String &db_path) const {
+String StreamManager::_derive_object_dir(const String &db_path) const {
 	String base = db_path.get_base_dir();
 	String name = "." + db_path.get_file().get_basename();
 	return base.path_join(name) + "/";
@@ -279,6 +305,14 @@ void StreamManager::_on_object_exited(Node *node) {
 	}
 	// 否则是用户手动删除，执行完整移除逻辑
 	remove_object(uuid);
+}
+
+void godot::StreamManager::_on_load_probe(StreamWorldProbe *probe) {
+	registered_probes_.insert(probe->get_instance_id());
+}
+
+void godot::StreamManager::_on_unload_probe(StreamWorldProbe *probe) {
+	registered_probes_.erase(probe->get_instance_id());
 }
 
 void StreamManager::_on_object_aabb_changed(StreamObjectNode *node) {
@@ -557,10 +591,10 @@ void StreamManager::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_database_path"), &StreamManager::get_database_path);
 	ADD_PROPERTY(PropertyInfo(Variant::STRING, "database_path", PROPERTY_HINT_FILE, "*.db"), "set_database_path", "get_database_path");
 
-	ClassDB::bind_method(D_METHOD("query_aabb", "aabb"), &StreamManager::query_aabb);
-
 	// 内部槽注册（供信号连接使用）
 	ClassDB::bind_method(D_METHOD("_on_object_entered"), &StreamManager::_on_object_entered);
 	ClassDB::bind_method(D_METHOD("_on_object_exited"), &StreamManager::_on_object_exited);
 	ClassDB::bind_method(D_METHOD("_on_object_aabb_changed"), &StreamManager::_on_object_aabb_changed);
+	ClassDB::bind_method(D_METHOD("_on_load_probe"), &StreamManager::_on_load_probe);
+	ClassDB::bind_method(D_METHOD("_on_unload_probe"), &StreamManager::_on_unload_probe);
 }
