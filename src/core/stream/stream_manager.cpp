@@ -56,7 +56,7 @@ void StreamManager::_process(double delta) {
 	// 批量数据库同步（含脏 AABB 处理）
 	_flush_pending_db_ops();
 
-	static uint8_t query_process;
+	// 执行查询
 	query_process++;
 	if (query_process >= 3) {
 		std::vector<AABB> query_aabbs;

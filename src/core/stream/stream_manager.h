@@ -57,6 +57,7 @@ private:
 	// 状态
 	String database_path_;
 	String object_scene_dir_;
+	uint8_t query_process = 0;// 计数器
 
 	// 数据库异步工作线程
 	Ref<AsyncDbWorker> db_worker_;
