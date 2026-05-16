@@ -37,20 +37,20 @@ void StreamWorldProbe::_ready() {
 	_connect_manager_signals();
 
 	if (is_visible_in_tree()) {
-		emit_signal("load_probe", this);
+		emit_signal("load_probe");
 	}
 }
 
 void StreamWorldProbe::_enter_tree() {
 	if (is_visible_in_tree()) {
-		emit_signal("load_probe", this);
+		emit_signal("load_probe");
 	}
 }
 
 void StreamWorldProbe::_exit_tree() {
 	// 离开树时主动发射卸载信号，避免残留
 	if (is_visible_in_tree()) {
-		emit_signal("unload_probe", this);
+		emit_signal("unload_probe");
 	}
 }
 
@@ -60,9 +60,9 @@ void StreamWorldProbe::_on_visibility_changed() {
 	}
 
 	if (is_visible_in_tree()) {
-		emit_signal("load_probe", this);
+		emit_signal("load_probe");
 	} else {
-		emit_signal("unload_probe", this);
+		emit_signal("unload_probe");
 	}
 }
 
@@ -77,8 +77,8 @@ void StreamWorldProbe::_connect_manager_signals() {
 		UtilityFunctions::push_warning("StreamWorldProbe: StreamManager not found at path: ", stream_manager_path_);
 	}
 	// 连接管理器回调
-	manager_node->connect("load_probe", callable_mp(manager_node, &StreamManager::_on_load_probe), CONNECT_APPEND_SOURCE_OBJECT);
-	manager_node->connect("unload_probe", callable_mp(manager_node, &StreamManager::_on_unload_probe), CONNECT_APPEND_SOURCE_OBJECT);
+	connect("load_probe", callable_mp(manager_node, &StreamManager::_on_load_probe), CONNECT_APPEND_SOURCE_OBJECT);
+	connect("unload_probe", callable_mp(manager_node, &StreamManager::_on_unload_probe), CONNECT_APPEND_SOURCE_OBJECT);
 }
 
 // 属性实现

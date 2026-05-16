@@ -9,6 +9,7 @@
 #include "gdsqlite/vfs/gdsqlite_vfs.hpp"
 #include "core/stream/stream_manager.h"
 #include "core/stream/stream_object.h"
+#include "core/stream/stream_world_probe.h"
 #include "core/components/async_db_worker.h"
 
 using namespace godot;
@@ -23,6 +24,7 @@ void initialize_gdextension_types(ModuleInitializationLevel p_level) {
 
 	GDREGISTER_CLASS(StreamObjectNode);
 	GDREGISTER_CLASS(StreamManager);
+	GDREGISTER_CLASS(StreamWorldProbe);
 	GDREGISTER_ABSTRACT_CLASS(AsyncDbWorker);
 }
 

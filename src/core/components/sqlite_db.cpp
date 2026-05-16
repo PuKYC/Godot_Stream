@@ -1,8 +1,8 @@
+#include <cstdint>
 #include <mutex>
 #include <stdexcept>
 #include <string>
 #include <vector>
-#include <cstdint>
 
 #include "gdsqlite/sqlite/sqlite3.h"
 #include "sqlite_db.h"
@@ -45,38 +45,38 @@ SQLiteDB::~SQLiteDB() {
 }
 
 bool SQLiteDB::is_connection_valid() {
-    if (!db_) {
-        return false;
-    }
+	if (!db_) {
+		return false;
+	}
 
-    // 先检查数据库是否处于 autocommit 模式（可选，用于诊断）
-    int auto_commit = sqlite3_get_autocommit(db_);
+	// 先检查数据库是否处于 autocommit 模式（可选，用于诊断）
+	int auto_commit = sqlite3_get_autocommit(db_);
 
-    sqlite3_stmt *stmt = nullptr;
-    // 准备简单查询
-    int rc = sqlite3_prepare_v2(db_, "SELECT 1", -1, &stmt, nullptr);
-    if (rc != SQLITE_OK) {
-        return false;
-    }
+	sqlite3_stmt *stmt = nullptr;
+	// 准备简单查询
+	int rc = sqlite3_prepare_v2(db_, "SELECT 1", -1, &stmt, nullptr);
+	if (rc != SQLITE_OK) {
+		return false;
+	}
 
-    // 执行查询
-    rc = sqlite3_step(stmt);
-    bool valid = false;
-    if (rc == SQLITE_ROW) {
-        valid = true;
-    }
+	// 执行查询
+	rc = sqlite3_step(stmt);
+	bool valid = false;
+	if (rc == SQLITE_ROW) {
+		valid = true;
+	}
 
-    // 必须 finalize，避免资源泄露
-    rc = sqlite3_finalize(stmt);
-    if (rc != SQLITE_OK) {
-        // 即使 finalize 失败，也要返回 valid 的状态（但实际可能有问题）
-        // 这里可考虑返回 false 表示连接不可用
+	// 必须 finalize，避免资源泄露
+	rc = sqlite3_finalize(stmt);
+	if (rc != SQLITE_OK) {
+		// 即使 finalize 失败，也要返回 valid 的状态（但实际可能有问题）
+		// 这里可考虑返回 false 表示连接不可用
 
-        // 可根据需要决定是否因 finalize 失败而返回 false
-        // 这里暂时保持 valid 原值，但记录错误
-    }
+		// 可根据需要决定是否因 finalize 失败而返回 false
+		// 这里暂时保持 valid 原值，但记录错误
+	}
 
-    return valid;
+	return valid;
 }
 
 const void SQLiteDB::exec(const std::string &sql) {
@@ -154,6 +154,7 @@ bool SQLiteDB::Stmt::step() {
 	if (rc == SQLITE_DONE)
 		return false;
 
+	godot::UtilityFunctions::printerr("SQLiteDB::Stmt::step: ", std::string(sqlite3_errmsg(db_)).c_str());
 	return false;
 }
 

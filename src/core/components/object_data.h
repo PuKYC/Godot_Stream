@@ -9,6 +9,5 @@
 
 struct ObjectData {
 	uuids::uuid parent_uuid = uuids::uuid(); // 父对象 UUID，根对象为uuids::uuid
-	int32_t chunk_id = -1; // 根据wolrd_aabb 计算
-	godot::ObjectID node_root; // 节点根对象, 不会保存到数据库
+	godot::ObjectID node_root = godot::ObjectID(); // 节点根对象, 不会保存到数据库
 };

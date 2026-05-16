@@ -16,6 +16,7 @@
 
 #include "uuid.h"
 
+#include <memory>
 #include <queue>
 #include <vector>
 
@@ -74,7 +75,7 @@ private:
 	a_hashset<uuids::uuid> pending_removal_; // manager删除标志位
 
 	// 待同步脏数据（主线程收集）
-	a_hashset<uuids::uuid> to_upsert_;
+	a_hashset<uuids::uuid> to_upsert_uuids_;
 	a_hashset<uuids::uuid> to_remove_;
 	a_hashset<uuids::uuid> dirty_aabb_;
 

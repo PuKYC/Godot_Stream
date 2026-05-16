@@ -24,13 +24,16 @@ public:
 	int query_chunk(const Chunk chunk);
 	ObjectData query_object(const uuids::uuid uuid);
 
-	void upsert_object(const uuids::uuid uuid, const ObjectData &object);
+	void upsert_object_uuids(const uuids::uuid uuid, const ObjectData &object);
 
 	void remove_object(const uuids::uuid uuid);
 
 	// 设置 / 获取对象的 AABB（带 LRU 缓存）
 	void set_object_aabb(const uuids::uuid &uuid, const godot::AABB &aabb);
 	godot::AABB get_object_aabb(const uuids::uuid &uuid);
+
+	// 设置chunk
+	void set_object_chunk(const uuids::uuid &uuid, int chunk_id);
 
 	// 按 parent_uuid 查询所有子对象的 uuid 和 AABB
 	std::vector<std::pair<uuids::uuid, godot::AABB>> query_children_aabb(const uuids::uuid &parent_uuid);
@@ -42,7 +45,7 @@ private:
 	lru_cache_t<uuids::uuid, godot::AABB> aabb_cache;
 
 	SQLiteDB::Stmt sql_upsert_chunk;
-	SQLiteDB::Stmt sql_upsert_object;
+	SQLiteDB::Stmt sql_upsert_object_uuids;
 
 	SQLiteDB::Stmt sql_query_chunk;
 	SQLiteDB::Stmt sql_query_object;
@@ -52,6 +55,7 @@ private:
 	SQLiteDB::Stmt sql_id_remove_chunk;
 	SQLiteDB::Stmt sql_info_remove_chunk;
 
+	SQLiteDB::Stmt sql_set_object_chunk;
 	SQLiteDB::Stmt sql_set_object_aabb;
 	SQLiteDB::Stmt sql_get_object_aabb;
 	SQLiteDB::Stmt sql_query_children_aabb;

@@ -4,15 +4,17 @@
     "version": "2.0.0",
     "tasks": [
         {
-        "label": "build",
-        "group": "build",
-        "type": "shell",
-        "command": "scons",
-        "args": [
-            // enable for debugging with breakpoints
-            "dev_build=yes",
-        ],
-        "problemMatcher": "$msCompile"
+            "label": "build",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "type": "shell",
+            "command": "scons",
+            "args": [
+                "dev_build=yes"
+            ],
+            "problemMatcher": "$msCompile"
         }
     ]
 }

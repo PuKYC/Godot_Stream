@@ -39,12 +39,16 @@ void StreamObjectNode::_notification(int p_what) {
 		return;
 
 	// 可选：在编辑器中检测子节点变化以更新 aabb_sources 的显示，这里略
-	emit_signal("object_aabb_changed", this);
+	emit_signal("object_aabb_changed");
 }
 
 // 仅获取自身aabb 不包括子对象
 AABB StreamObjectNode::get_aabb() const {
 	AABB total;
+
+	if (aabb_sources.size() == 0 or aabb_sources.is_empty()) {
+		return AABB(get_position(), Vector3(0, 0, 0));
+	}
 
 	// 1. 合并 aabb_sources 中指定的视觉实例（已在场景树中）
 	for (int i = 0; i < aabb_sources.size(); ++i) {
@@ -96,7 +100,6 @@ void StreamObjectNode::_bind_methods() {
 
 	MethodInfo object_aabb_changed;
 	object_aabb_changed.name = "object_aabb_changed";
-	object_aabb_changed.arguments.push_back(PropertyInfo(Variant::OBJECT, "this"));
 	ADD_SIGNAL(object_aabb_changed);
 }
 

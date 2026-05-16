@@ -12,7 +12,7 @@
 
 using namespace godot;
 
-// 构造 / 析构
+// 构造 析构
 StreamManager::StreamManager() : cache_(16, 32) {
 	// 缓存容量可后续调整为可配置属性
 
@@ -36,8 +36,27 @@ void StreamManager::_ready() {
 
 void StreamManager::_process(double delta) {
 	// 异步数据库回调执行
-	if (db_worker_.is_valid())
+	if (db_worker_.is_valid()) {
+		// 批量数据库同步（含脏 AABB 处理）
+		_flush_pending_db_ops();
+
+		// 执行上一帧的任务回调
 		db_worker_->flush_callbacks();
+
+		// 执行查询
+		query_process++;
+		if (query_process >= 3) {
+			std::vector<AABB> query_aabbs;
+			for (auto id : registered_probes_) {
+				StreamWorldProbe *probe = Object::cast_to<StreamWorldProbe>(ObjectDB::get_instance(id));
+				query_aabbs.push_back(probe->get_aabb());
+			}
+
+			_query_aabb(query_aabbs);
+
+			query_process = 0;
+		}
+	};
 
 	// 轮询场景缓存异步加载状态
 	cache_.update();
@@ -51,23 +70,6 @@ void StreamManager::_process(double delta) {
 		_load_object_scene(uuid);
 
 		++loads;
-	}
-
-	// 批量数据库同步（含脏 AABB 处理）
-	_flush_pending_db_ops();
-
-	// 执行查询
-	query_process++;
-	if (query_process >= 3) {
-		std::vector<AABB> query_aabbs;
-		for (auto id : registered_probes_) {
-			StreamWorldProbe *probe = Object::cast_to<StreamWorldProbe>(ObjectDB::get_instance(id));
-			query_aabbs.push_back(probe->get_aabb());
-		}
-
-		_query_aabb(query_aabbs);
-
-		query_process = 0;
 	}
 }
 
@@ -136,27 +138,20 @@ void StreamManager::add_object(StreamObjectNode *node) {
 	data.parent_uuid = node->get_parent_uuid();
 	data.node_root = node->get_instance_id();
 
-	// 计算 chunk_id（需要 world_aabb，这里同步计算）
-	// 但数据库查询 chunk_id 通常异步，但为了简单，可以先用 AABB 计算 chunk 坐标，然后异步 upsert。
-	// 这里我们在主线程调用 StreamSqliteDB 的同步 query_chunk 不合适（阻塞），
-	// 所以将 chunk_id 设为 -1，在后续异步 upsert 时由数据库计算。
-	// 或者在 db_worker 中添加预计算 chunk 的方法。
-	// 此处我们假设 upsert_object 内部会自动调用 query_chunk 并填入 chunk_id。
-	// 但 ObjectData::chunk_id 必须最终存储正确的值，交给数据库。
-	data.chunk_id = -1; // 将后续异步填充
-
 	registry_[uuid] = data;
 
 	// 建立父子映射（基于 parent_uuid）
 	if (!data.parent_uuid.is_nil())
 		children_map_[data.parent_uuid].insert(uuid);
 
-	to_upsert_.insert(uuid);
+	to_upsert_uuids_.insert(uuid);
+	dirty_aabb_.insert(uuid);
 
 	_connect_node_signals(node);
 }
 
 void StreamManager::remove_object(const uuids::uuid &uuid) {
+	UtilityFunctions::print("[StreamManager] remove_object: ", uuids::to_string(uuid).c_str());
 	// 收集所有要删除的 UUID（自身 + 全部子孙）
 	a_hashset<uuids::uuid> to_delete = _collect_descendants(uuid);
 
@@ -194,16 +189,12 @@ void StreamManager::remove_object(const uuids::uuid &uuid) {
 
 		// 标记数据库删除（下帧批量同步）
 		to_remove_.insert(id);
-		to_upsert_.erase(id);
+		to_upsert_uuids_.erase(id);
 	}
 
 	// 清除这些节点的 children_map 条目（它们不可能再作为父节点存在）
 	for (const auto &id : to_delete)
 		children_map_.erase(id);
-
-	// 删除完成后，立即移除 pending 标记（允许后续同名 ID 正常使用）
-	for (const auto &id : to_delete)
-		pending_removal_.erase(id);
 }
 
 void StreamManager::update_object(StreamObjectNode *node) {
@@ -225,7 +216,7 @@ void StreamManager::update_object(StreamObjectNode *node) {
 		data.parent_uuid = new_parent;
 	}
 
-	to_upsert_.insert(uuid);
+	to_upsert_uuids_.insert(uuid);
 }
 
 a_hashset<uuids::uuid> StreamManager::_collect_descendants(const uuids::uuid &root) const {
@@ -264,7 +255,8 @@ uuids::uuid godot::StreamManager::_generate_uuid() {
 }
 
 void StreamManager::_connect_node_signals(StreamObjectNode *node) {
-	node->connect("object_aabb_changed", callable_mp(this, &StreamManager::_on_object_aabb_changed), CONNECT_APPEND_SOURCE_OBJECT);
+	if (!node->is_connected("object_aabb_changed", callable_mp(this, &StreamManager::_on_object_aabb_changed)))
+		node->connect("object_aabb_changed", callable_mp(this, &StreamManager::_on_object_aabb_changed), CONNECT_APPEND_SOURCE_OBJECT);
 }
 
 String StreamManager::_derive_object_dir(const String &db_path) const {
@@ -300,7 +292,7 @@ void StreamManager::_on_object_exited(Node *node) {
 	auto obj = Object::cast_to<StreamObjectNode>(node);
 
 	uuids::uuid uuid = obj->get_uuid();
-	if (pending_removal_.count(uuid)) {
+	if (pending_removal_.count(uuid) or node->is_queued_for_deletion()) {
 		return;
 	}
 	// 否则是用户手动删除，执行完整移除逻辑
@@ -349,8 +341,6 @@ void StreamManager::_on_query_result(const a_hashmap<uuids::uuid, ObjectData> &d
 			// 已存在，更新静态数据，保持运行时状态
 			ObjectData &local = registry_[uuid];
 			local.parent_uuid = db_data.parent_uuid;
-			local.chunk_id = db_data.chunk_id;
-			// world_aabb 不覆盖，因为本地可能更新
 		} else {
 			registry_[uuid] = db_data;
 		}
@@ -397,20 +387,22 @@ void StreamManager::_load_object_scene(const uuids::uuid &uuid) {
 	}
 
 	// 设置所有者并挂载
+	add_child(node, true);
 	node->set_owner(this);
-	add_child(node);
 
 	_connect_node_signals(stream_node);
 }
 
 void StreamManager::_unload_object(const uuids::uuid &uuid) {
+	UtilityFunctions::print("[StreamManager] unload object: ", uuids::to_string(uuid).c_str());
 	if (!registry_.count(uuid))
 		return;
 
 	// 收集所有子孙 UUID（包括自身），统一插入 pending_removal_
 	a_hashset<uuids::uuid> all_ids = _collect_descendants(uuid);
-	for (const auto &id : all_ids)
+	for (const auto &id : all_ids) {
 		pending_removal_.insert(id);
+	}
 
 	// 递归卸载子对象（深度优先，保存并缓存子节点）
 	if (children_map_.count(uuid)) {
@@ -475,19 +467,21 @@ String StreamManager::_object_scene_path(const uuids::uuid &uuid) const {
 void StreamManager::_flush_pending_db_ops() {
 	if (!db_worker_.is_valid())
 		return;
-	if (to_upsert_.empty() && to_remove_.empty() && dirty_aabb_.empty())
+	if (to_upsert_uuids_.empty() && to_remove_.empty() && dirty_aabb_.empty())
 		return;
 
 	// 正常 upsert：在主线程捕获 ObjectData（避免 DB 线程访问 registry_）
 	auto upsert_data = std::make_shared<std::vector<std::pair<uuids::uuid, ObjectData>>>();
-	for (const auto &uuid : to_upsert_) {
+	for (const auto &uuid : to_upsert_uuids_) {
 		auto it = registry_.find(uuid);
 		if (it != registry_.end())
 			upsert_data->emplace_back(uuid, it->second);
 	}
-	to_upsert_.clear();
+	to_upsert_uuids_.clear();
 
-	auto remove = std::make_shared<a_hashset<uuids::uuid>>(std::move(to_remove_));
+	// 交换remove容器
+	auto remove = std::make_shared<a_hashset<uuids::uuid>>();
+	remove->swap(to_remove_);
 	to_remove_.clear();
 
 	// 脏 AABB：在主线程捕获 AABB 快照
@@ -516,15 +510,15 @@ void StreamManager::_flush_pending_db_ops() {
 							   for (const auto &uuid : *remove)
 								   db.remove_object(uuid);
 
-							   // 正常 upsert
+							   // 正常 upsert uuid
 							   for (const auto &[uuid, data] : *upsert_data)
-								   db.upsert_object(uuid, data);
+								   db.upsert_object_uuids(uuid, data);
 
-							   // 阶段一：批量更新所有脏 AABB（确保子对象数据最新）
+							   // 批量更新所有脏 AABB
 							   for (const auto &[uuid, aabb] : *dirty_data)
 								   db.set_object_aabb(uuid, aabb);
 
-							   // 阶段二：基于已更新 AABB 计算聚合包围盒并生成 chunk
+							   // 基于已更新 AABB 计算聚合包围盒并生成 chunk
 							   for (const auto &[uuid, aabb] : *dirty_data) {
 								   // 聚合自身与所有子对象的 AABB
 								   godot::AABB agg_aabb = aabb;
@@ -535,20 +529,16 @@ void StreamManager::_flush_pending_db_ops() {
 
 								   Chunk chunk = Chunk::compute_chunk(agg_aabb);
 								   int new_chunk_id = db.query_chunk(chunk);
-
-								   ObjectData obj_data = db.query_object(uuid);
-								   obj_data.chunk_id = new_chunk_id;
-								   db.upsert_object(uuid, obj_data);
+								   db.set_object_chunk(uuid, new_chunk_id);
 								   (*dirty_result)[uuid] = new_chunk_id;
+
+								   // TODO 不去获取整个字段，精确到parent_uuid
+								   ObjectData obj_data = db.query_object(uuid);
 
 								   // 沿父链向上更新祖先 chunk_id
 								   uuids::uuid parent = obj_data.parent_uuid;
-								   int depth = 0;
-								   const int MAX_DEPTH = 64;
-								   while (!parent.is_nil() && depth < MAX_DEPTH) {
+								   while (!parent.is_nil()) {
 									   ObjectData parent_data = db.query_object(parent);
-									   if (parent_data.chunk_id == -1)
-										   break;
 
 									   // 聚合祖先的 AABB（自身 + 所有子对象）
 									   godot::AABB parent_agg = db.get_object_aabb(parent);
@@ -563,25 +553,14 @@ void StreamManager::_flush_pending_db_ops() {
 									   Chunk parent_chunk = Chunk::compute_chunk(parent_agg);
 									   int parent_chunk_id = db.query_chunk(parent_chunk);
 
-									   if (parent_chunk_id == parent_data.chunk_id)
-										   break;
-
-									   parent_data.chunk_id = parent_chunk_id;
-									   db.upsert_object(parent, parent_data);
+									   db.set_object_chunk(parent, parent_chunk_id);
 									   (*dirty_result)[parent] = parent_chunk_id;
 
 									   parent = parent_data.parent_uuid;
-									   ++depth;
 								   }
 							   }
 						   },
-							[this, dirty_result]() {
-								// 主线程回调：同步 chunk_id 到 registry_
-								for (const auto &[uuid, chunk_id] : *dirty_result) {
-									auto it = registry_.find(uuid);
-									if (it != registry_.end())
-										it->second.chunk_id = chunk_id;
-								}
+							[]() {
 							} });
 }
 

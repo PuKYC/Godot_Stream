@@ -17,11 +17,10 @@ StreamSqliteDB::StreamSqliteDB(const std::string &path, bool read_only) : db(pat
         RETURNING id;
     )");
 
-	sql_upsert_object = SQLiteDB::Stmt(db, R"(
-        INSERT INTO object_uuid (uuid, chunk_id, parent_uuid)
-        VALUES (?1, ?2, ?3)
+	sql_upsert_object_uuids = SQLiteDB::Stmt(db, R"(
+        INSERT INTO object_uuid (uuid, parent_uuid)
+        VALUES (?1, ?2)
         ON CONFLICT(uuid) DO UPDATE SET
-            chunk_id = excluded.chunk_id,
             parent_uuid = excluded.parent_uuid
     )");
 
@@ -58,14 +57,18 @@ StreamSqliteDB::StreamSqliteDB(const std::string &path, bool read_only) : db(pat
         WHERE (level, tile_x, tile_y, tile_z) = (?1, ?2, ?3, ?4);
     )");
 
-	// 新增：更新对象 AABB 的语句
+	sql_set_object_chunk = SQLiteDB::Stmt(db, R"(
+    UPDATE object_uuid SET chunk_id = ?2 WHERE uuid = ?1;
+	)");
+
+	// 更新对象 AABB 的语句
 	sql_set_object_aabb = SQLiteDB::Stmt(db, R"(
         UPDATE object_uuid
         SET minX = ?1, maxX = ?2, minY = ?3, maxY = ?4, minZ = ?5, maxZ = ?6
         WHERE uuid = ?7;
     )");
 
-	// 新增：查询对象 AABB 的语句
+	// 查询对象 AABB 的语句
 	sql_get_object_aabb = SQLiteDB::Stmt(db, R"(
         SELECT minX, maxX, minY, maxY, minZ, maxZ
         FROM object_uuid
@@ -125,7 +128,7 @@ void StreamSqliteDB::clear_and_create_table() {
 	db.exec(R"(
         CREATE TABLE object_uuid (
             uuid BLOB PRIMARY KEY,            -- 对象 uuid（128 位二进制）
-            chunk_id INTEGER NOT NULL,         -- 所属 chunk ID
+            chunk_id INTEGER,		           -- 所属 chunk ID
             parent_uuid BLOB,                  -- 父对象 uuid（允许 NULL）
             minX INTEGER,                      -- AABB 最小 X
             maxX INTEGER,                      -- AABB 最大 X
@@ -207,9 +210,8 @@ a_hashmap<uuids::uuid, ObjectData> StreamSqliteDB::query_objects(const std::vect
 			continue;
 		uuids::uuid uuid_key = *static_cast<const uuids::uuid *>(blob);
 
-		int chunk_id = stmt.get_int(1);
 		uuids::uuid parent = read_nullable_uuid(stmt, 2);
-		result[uuid_key] = ObjectData{ parent, chunk_id };
+		result[uuid_key] = ObjectData{ parent };
 	}
 
 	stmt_finish(stmt);
@@ -234,8 +236,6 @@ a_hashmap<uuids::uuid, ObjectData> StreamSqliteDB::query_objects(const AABB aabb
 			continue;
 		uuids::uuid uuid_key = *static_cast<const uuids::uuid *>(blob);
 
-		int chunk_id = sql_query_uuid_of_aabb.get_int(1);
-
 		uuids::uuid parent;
 		if (sql_query_uuid_of_aabb.is_null(2)) {
 			parent = uuids::uuid();
@@ -244,25 +244,24 @@ a_hashmap<uuids::uuid, ObjectData> StreamSqliteDB::query_objects(const AABB aabb
 			parent = *static_cast<const uuids::uuid *>(parent_blob);
 		}
 
-		result[uuid_key] = ObjectData{ parent, chunk_id };
+		result[uuid_key] = ObjectData{ parent };
 	}
 
 	stmt_finish(sql_query_uuid_of_aabb);
 	return result;
 }
 
-void StreamSqliteDB::upsert_object(const uuids::uuid uuid, const ObjectData &objectdata) {
-	sql_upsert_object.bind_blob(1, &uuid, sizeof(uuids::uuid));
-	sql_upsert_object.bind_int(2, objectdata.chunk_id);
+void StreamSqliteDB::upsert_object_uuids(const uuids::uuid uuid, const ObjectData &objectdata) {
+	sql_upsert_object_uuids.bind_blob(1, &uuid, sizeof(uuids::uuid));
 
 	if (objectdata.parent_uuid == uuids::uuid()) {
-		sql_upsert_object.bind_null(3);
+		sql_upsert_object_uuids.bind_null(3);
 	} else {
-		sql_upsert_object.bind_blob(3, &objectdata.parent_uuid, sizeof(uuids::uuid));
+		sql_upsert_object_uuids.bind_blob(3, &objectdata.parent_uuid, sizeof(uuids::uuid));
 	}
 
-	sql_upsert_object.step();
-	stmt_finish(sql_upsert_object);
+	sql_upsert_object_uuids.step();
+	stmt_finish(sql_upsert_object_uuids);
 }
 
 int StreamSqliteDB::query_chunk(const Chunk chunk) {
@@ -295,7 +294,6 @@ ObjectData StreamSqliteDB::query_object(const uuids::uuid uuid) {
 	sql_query_object.bind_blob(1, &uuid, sizeof(uuids::uuid));
 	ObjectData result;
 	if (sql_query_object.step()) {
-		result.chunk_id = sql_query_object.get_int(1);
 		if (sql_query_object.is_null(2)) {
 			result.parent_uuid = uuids::uuid();
 		} else {
@@ -319,8 +317,6 @@ void StreamSqliteDB::remove_object(const uuids::uuid uuid) {
 	// 同步清除 AABB 缓存
 	aabb_cache.Remove(uuid);
 }
-
-// --------------------- 新增实现 ---------------------
 
 void StreamSqliteDB::set_object_aabb(const uuids::uuid &uuid, const godot::AABB &aabb) {
 	// 更新数据库
@@ -362,7 +358,12 @@ godot::AABB StreamSqliteDB::get_object_aabb(const uuids::uuid &uuid) {
 	return aabb;
 }
 
-// --------------------- 辅助函数实现 ---------------------
+void StreamSqliteDB::set_object_chunk(const uuids::uuid &uuid, int chunk_id) {
+	sql_set_object_chunk.bind_blob(1, &uuid, sizeof(uuids::uuid));
+	sql_set_object_chunk.bind_int(2, chunk_id);
+	sql_set_object_chunk.step();
+	stmt_finish(sql_set_object_chunk);
+}
 
 void StreamSqliteDB::update_info(std::string version) {
 	auto sql_upsert_info = SQLiteDB::Stmt(db, "INSERT OR REPLACE INTO db_info (key, value) VALUES (?, ?);");
@@ -417,8 +418,6 @@ godot::AABB StreamSqliteDB::read_aabb_from_stmt(SQLiteDB::Stmt &stmt, int col_st
 	// godot::AABB 使用 position + size 构造，这里转换为尺寸
 	return godot::AABB(min_pos, max_pos - min_pos);
 }
-
-// --------------------- query_children_aabb ---------------------
 
 std::vector<std::pair<uuids::uuid, godot::AABB>> StreamSqliteDB::query_children_aabb(const uuids::uuid &parent_uuid) {
 	std::vector<std::pair<uuids::uuid, godot::AABB>> result;
