@@ -284,7 +284,8 @@ void StreamManager::_on_object_exited(Node *node) {
 	auto obj = Object::cast_to<StreamObjectNode>(node);
 
 	uuids::uuid uuid = obj->get_uuid();
-	if (pending_removal_.count(uuid) or node->is_queued_for_deletion() or is_queued_for_deletion()) {
+	// TODO 有概率绕过
+	if (pending_removal_.count(uuid) || node->is_queued_for_deletion() || is_queued_for_deletion()) {
 		return;
 	}
 	// 否则是用户手动删除，执行完整移除逻辑
@@ -386,7 +387,7 @@ void StreamManager::_load_object_scene(const uuids::uuid &uuid) {
 
 	// 设置所有者并挂载
 	add_child(node, true);
-	node->set_owner(this);
+	node->set_owner(get_owner());
 
 	_connect_node_signals(stream_node);
 
