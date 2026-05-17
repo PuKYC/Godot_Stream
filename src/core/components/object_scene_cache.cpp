@@ -48,7 +48,7 @@ Node *ObjectSceneCache::acquire(const uuids::uuid &uuid, const String &scene_pat
 void ObjectSceneCache::release(const uuids::uuid &uuid, Node *node) {
 	if (!node)
 		return;
-	
+
 	auto old = node_cache_.TryGet(uuid);
 	if (old.second) {
 		evict_node(old.first);
@@ -57,10 +57,10 @@ void ObjectSceneCache::release(const uuids::uuid &uuid, Node *node) {
 }
 
 // 异步加载管理
-void ObjectSceneCache::request_scene(const uuids::uuid &uuid, const String &scene_path) {
+bool ObjectSceneCache::request_scene(const uuids::uuid &uuid, const String &scene_path) {
 	// 已缓存或正在加载则忽略
 	if (get_scene(uuid).is_valid() || loading_set_.count(uuid)) {
-		return;
+		return true;
 	}
 
 	// 发起后台加载
@@ -69,13 +69,12 @@ void ObjectSceneCache::request_scene(const uuids::uuid &uuid, const String &scen
 	if (err == OK) {
 		loading_requests_.push_back({ uuid, scene_path });
 		loading_set_.insert(uuid);
-	} else {
-		// 降级为同步加载并直接存入缓存（出错处理）
-		Ref<PackedScene> scene = load_scene_from_disk_sync(scene_path);
-		if (scene.is_valid()) {
-			store_scene(uuid, scene);
-		}
+
+		return true;
 	}
+
+	print_error("[ObjectSceneCache] Failed to load scene, code: " + err);
+	return false;
 }
 
 void ObjectSceneCache::update() {

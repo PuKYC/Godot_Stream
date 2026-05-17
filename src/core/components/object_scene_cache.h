@@ -34,7 +34,7 @@ public:
 	void release(const uuids::uuid &uuid, Node *node);
 
 	// 发起异步加载请求（若已缓存或正在加载则忽略）
-	void request_scene(const uuids::uuid &uuid, const String &scene_path);
+	bool request_scene(const uuids::uuid &uuid, const String &scene_path);
 
 	// 每帧调用，轮询异步加载完成状态，将结果存入资源缓存
 	void update();

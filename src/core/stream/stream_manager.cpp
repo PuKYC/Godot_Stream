@@ -26,8 +26,6 @@ StreamManager::~StreamManager() {
 	if (db_worker_.is_valid()) {
 		_flush_pending_db_ops(); // 最后一次同步
 	}
-
-	// TODO 关闭编辑器未标记会导致 对象丢失
 }
 
 void StreamManager::_ready() {
@@ -368,11 +366,11 @@ void StreamManager::_load_object_scene(const uuids::uuid &uuid) {
 
 	String scene_path = _object_scene_path(uuid);
 	Node *node = cache_.acquire(uuid, scene_path);
-	// TODO 没考虑到场景损坏的情况
+
 	if (!node) {
 		// 资源尚未缓存：发起异步加载请求，稍后再试
-		cache_.request_scene(uuid, scene_path);
-		load_queue_.push(uuid); // 重新入队等待加载完成
+		if (cache_.request_scene(uuid, scene_path))
+			load_queue_.push(uuid); // 重新入队等待加载完成
 		return;
 	}
 
