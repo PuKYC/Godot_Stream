@@ -273,11 +273,9 @@ void StreamManager::_on_object_entered(Node *node) {
 		return;
 	}
 
-	// 如果注册表中已存在，说明是重新加载，只需更新引用
-	if (registry_.count(uuid)) {
-		registry_[uuid].node_root = node->get_instance_id();
-		return;
-	}
+	// 否则只需更新引用
+	registry_[uuid].node_root = node->get_instance_id();
+	_connect_node_signals(obj);
 }
 
 // 槽函数
@@ -370,6 +368,7 @@ void StreamManager::_load_object_scene(const uuids::uuid &uuid) {
 
 	String scene_path = _object_scene_path(uuid);
 	Node *node = cache_.acquire(uuid, scene_path);
+	// TODO 没考虑到场景损坏的情况
 	if (!node) {
 		// 资源尚未缓存：发起异步加载请求，稍后再试
 		cache_.request_scene(uuid, scene_path);

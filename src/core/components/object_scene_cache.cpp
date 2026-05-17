@@ -27,20 +27,20 @@ size_t ObjectSceneCache::scene_cache_size() const noexcept {
 }
 
 Node *ObjectSceneCache::acquire(const uuids::uuid &uuid, const String &scene_path) {
-	// 1. 节点缓存优先
+	// 节点缓存优先
 	auto result = node_cache_.TryGet(uuid); // 返回 std::pair<Node*, bool>
 	if (result.second) { // 如果找到了节点
 		node_cache_.Remove(uuid); // 从缓存中移除
 		return result.first; // 返回节点指针
 	}
 
-	// 2. 场景资源缓存命中
+	// 场景资源缓存命中
 	Ref<PackedScene> scene = get_scene(uuid);
 	if (scene.is_valid()) {
 		return scene->instantiate(); // 同步实例化，开销很小
 	}
 
-	// 3. 资源未缓存：尝试同步加载（降级方案）或返回 nullptr 让异步接管
+	// 资源未缓存：尝试同步加载（降级方案）或返回 nullptr 让异步接管
 	// 这里可根据策略选择同步加载，但为了非阻塞返回 nullptr
 	return nullptr;
 }
