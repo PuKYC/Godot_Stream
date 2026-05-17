@@ -1,0 +1,10 @@
+[gd_scene format=3 uid="uid://bp4qyjou0p7ci"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_7dm0k"]
+size = Vector3(4.305, 0.06, 3.73)
+
+[node name="StreamObjectNode" type="StreamObjectNode" unique_id=647105228]
+aabb_sources = Array[NodePath]([NodePath("MeshInstance3D")])
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=2004665588]
+mesh = SubResource("BoxMesh_7dm0k")

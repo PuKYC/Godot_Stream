@@ -145,6 +145,7 @@ void SQLiteDB::Stmt::bind_null(int idx) {
 
 bool SQLiteDB::Stmt::step() {
 	if (!stmt_) {
+		godot::UtilityFunctions::printerr("SQLiteDB::Stmt::step(): Invalid statement.");
 		return false;
 	}
 

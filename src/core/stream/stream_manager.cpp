@@ -26,6 +26,8 @@ StreamManager::~StreamManager() {
 	if (db_worker_.is_valid()) {
 		_flush_pending_db_ops(); // 最后一次同步
 	}
+
+	// TODO 关闭编辑器未标记会导致 对象丢失
 }
 
 void StreamManager::_ready() {
@@ -45,7 +47,7 @@ void StreamManager::_process(double delta) {
 
 		// 执行查询
 		query_process++;
-		if (query_process >= 3) {
+		if (query_process >= 60) {
 			std::vector<AABB> query_aabbs;
 			for (auto id : registered_probes_) {
 				StreamWorldProbe *probe = Object::cast_to<StreamWorldProbe>(ObjectDB::get_instance(id));
@@ -65,6 +67,8 @@ void StreamManager::_process(double delta) {
 	const int MAX_LOADS_PER_FRAME = 4;
 	int loads = 0;
 	while (!load_queue_.empty() && loads < MAX_LOADS_PER_FRAME) {
+		UtilityFunctions::print("[StreamManager] Loading scene: ", uuids::to_string(load_queue_.front()).c_str());
+
 		uuids::uuid uuid = load_queue_.front();
 		load_queue_.pop();
 		_load_object_scene(uuid);
@@ -128,7 +132,7 @@ void StreamManager::add_object(StreamObjectNode *node) {
 		return;
 	uuids::uuid uuid = node->get_uuid();
 	if (uuid.is_nil()) {
-		// 理论上不应发生，或在首次添加时分配新 UUID
+		// 理论上不应发生
 		WARN_PRINT("StreamObjectNode without valid UUID cannot be added.");
 		return;
 	}
@@ -150,31 +154,17 @@ void StreamManager::add_object(StreamObjectNode *node) {
 	_connect_node_signals(node);
 }
 
+// 对象移除但节点需手动删除
 void StreamManager::remove_object(const uuids::uuid &uuid) {
 	UtilityFunctions::print("[StreamManager] remove_object: ", uuids::to_string(uuid).c_str());
 	// 收集所有要删除的 UUID（自身 + 全部子孙）
 	a_hashset<uuids::uuid> to_delete = _collect_descendants(uuid);
-
-	// 将所有受影响的 UUID 加入 pending_removal_，抑制后续 _exit_tree 信号
-	for (const auto &id : to_delete)
-		pending_removal_.insert(id);
 
 	// 遍历处理每个对象（顺序无关紧要）
 	for (const auto &id : to_delete) {
 		auto it = registry_.find(id);
 		if (it == registry_.end())
 			continue;
-
-		// 卸载已实例化的场景节点
-		if (it->second.node_root.is_valid()) {
-			StreamObjectNode *obj_node = Object::cast_to<StreamObjectNode>(
-					ObjectDB::get_instance(it->second.node_root));
-			if (obj_node) {
-				_save_object_to_file(id, obj_node); // 保存最终状态
-				obj_node->queue_free(); // 移出场景树
-				cache_.release(id, obj_node); // 放入节点缓存（可选）
-			}
-		}
 
 		// 删除磁盘上的场景文件
 		_delete_object_scene(id);
@@ -201,6 +191,8 @@ void StreamManager::update_object(StreamObjectNode *node) {
 	uuids::uuid uuid = node->get_uuid();
 	if (!registry_.count(uuid))
 		return;
+
+	UtilityFunctions::print("[StreamManager] update_object: ", uuids::to_string(uuid).c_str());
 
 	// 更新 AABB 和 node_root（以防节点重新创建）
 	registry_[uuid].node_root = node->get_instance_id();
@@ -241,6 +233,7 @@ void godot::StreamManager::_query_aabb(std::vector<AABB> &aabbs) {
 	db_worker_->push_task({ [aabbs, result_ptr](StreamSqliteDB &db) {
 							   // 将查询结果赋值给 shared_ptr 指向的 map
 							   *result_ptr = db.query_objects(aabbs);
+							   UtilityFunctions::print("[StreamManager] query_aabb: ", aabbs.size(), " find: ", result_ptr->size(), " objects");
 						   },
 							[this, result_ptr]() {
 								_on_query_result(*result_ptr);
@@ -274,13 +267,16 @@ void StreamManager::_on_object_entered(Node *node) {
 	auto obj = Object::cast_to<StreamObjectNode>(node);
 	uuids::uuid uuid = obj->get_uuid();
 	if (uuid.is_nil()) {
-		obj->set_uuid(_generate_uuid());
+		uuid = _generate_uuid();
+		obj->set_uuid(uuid);
 		add_object(obj);
+		return;
 	}
 
 	// 如果注册表中已存在，说明是重新加载，只需更新引用
 	if (registry_.count(uuid)) {
 		registry_[uuid].node_root = node->get_instance_id();
+		return;
 	}
 }
 
@@ -292,7 +288,7 @@ void StreamManager::_on_object_exited(Node *node) {
 	auto obj = Object::cast_to<StreamObjectNode>(node);
 
 	uuids::uuid uuid = obj->get_uuid();
-	if (pending_removal_.count(uuid) or node->is_queued_for_deletion()) {
+	if (pending_removal_.count(uuid) or node->is_queued_for_deletion() or is_queued_for_deletion()) {
 		return;
 	}
 	// 否则是用户手动删除，执行完整移除逻辑
@@ -310,6 +306,7 @@ void godot::StreamManager::_on_unload_probe(StreamWorldProbe *probe) {
 void StreamManager::_on_object_aabb_changed(StreamObjectNode *node) {
 	uuids::uuid uuid = node->get_uuid();
 	if (registry_.count(uuid)) {
+		UtilityFunctions::print("[StreamManager] object_aabb_changed: ", uuids::to_string(uuid).c_str());
 		dirty_aabb_.insert(uuid); // 延迟至 _process 更新
 	}
 }
@@ -318,8 +315,9 @@ void StreamManager::_on_object_aabb_changed(StreamObjectNode *node) {
 void StreamManager::_on_query_result(const a_hashmap<uuids::uuid, ObjectData> &db_objects) {
 	// 构建新数据集的 UUID 集合
 	a_hashset<uuids::uuid> new_set;
-	for (const auto &pair : db_objects)
+	for (const auto &pair : db_objects) {
 		new_set.insert(pair.first);
+	}
 
 	// 卸载不再需要的对象
 	std::vector<uuids::uuid> to_unload;
@@ -329,10 +327,11 @@ void StreamManager::_on_query_result(const a_hashmap<uuids::uuid, ObjectData> &d
 		}
 	}
 	for (const auto &uuid : to_unload) {
+		UtilityFunctions::print("[StreamManager] Unload object: ", uuids::to_string(uuid).c_str());
 		_unload_object(uuid); // 会保存场景并缓存
 	}
 
-	// 合并数据库最新数据到注册表（保留 is_loaded 和 node_root 等运行时状态）
+	// 合并数据库最新数据到注册表（保留 node_root 等运行时状态）
 	for (const auto &pair : db_objects) {
 		const uuids::uuid &uuid = pair.first;
 		const ObjectData &db_data = pair.second;
@@ -391,6 +390,8 @@ void StreamManager::_load_object_scene(const uuids::uuid &uuid) {
 	node->set_owner(this);
 
 	_connect_node_signals(stream_node);
+
+	UtilityFunctions::print("[StreamManager] load object successful: ", uuids::to_string(uuid).c_str());
 }
 
 void StreamManager::_unload_object(const uuids::uuid &uuid) {
@@ -404,6 +405,7 @@ void StreamManager::_unload_object(const uuids::uuid &uuid) {
 		pending_removal_.insert(id);
 	}
 
+	// TODO 应该有更好的方法实现
 	// 递归卸载子对象（深度优先，保存并缓存子节点）
 	if (children_map_.count(uuid)) {
 		auto children = children_map_[uuid]; // 拷贝，避免迭代中修改
@@ -435,14 +437,11 @@ void StreamManager::_unload_object(const uuids::uuid &uuid) {
 }
 
 void StreamManager::_save_object_to_file(const uuids::uuid &uuid, Node *node) {
+	UtilityFunctions::print("[StreamManager] save_object: ", uuids::to_string(uuid).c_str());
+
 	// 打包整个 node 树
 	Ref<PackedScene> scene;
 	scene.instantiate();
-	scene->pack(node);
-	if (scene.is_null()) {
-		UtilityFunctions::printerr("Failed to pack scene for object: ", uuids::to_string(uuid).c_str());
-		return;
-	}
 
 	String path = _object_scene_path(uuid);
 	Error err = ResourceSaver::get_singleton()->save(scene, path, ResourceSaver::FLAG_COMPRESS);
@@ -482,7 +481,6 @@ void StreamManager::_flush_pending_db_ops() {
 	// 交换remove容器
 	auto remove = std::make_shared<a_hashset<uuids::uuid>>();
 	remove->swap(to_remove_);
-	to_remove_.clear();
 
 	// 脏 AABB：在主线程捕获 AABB 快照
 	auto dirty_data = std::make_shared<a_hashmap<uuids::uuid, godot::AABB>>();

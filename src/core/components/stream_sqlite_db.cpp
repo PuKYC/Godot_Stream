@@ -176,14 +176,8 @@ a_hashmap<uuids::uuid, ObjectData> StreamSqliteDB::query_objects(const std::vect
 	if (aabbs.empty())
 		return result;
 
-	// 1. 动态生成 UNION ALL 的 SQL
+	// 动态生成 UNION ALL 的 SQL
 	std::stringstream sql;
-	sql << "SELECT o.uuid, o.chunk_id, o.parent_uuid "
-		   "FROM object_uuid o "
-		   "JOIN chunk_metadata c ON o.chunk_id = c.id "
-		   "JOIN chunk_rtree r ON c.id = r.id "
-		   "WHERE ";
-
 	for (size_t i = 0; i < aabbs.size(); ++i) {
 		if (i > 0)
 			sql << " UNION ALL ";
@@ -191,19 +185,18 @@ a_hashmap<uuids::uuid, ObjectData> StreamSqliteDB::query_objects(const std::vect
 			   "FROM object_uuid o "
 			   "JOIN chunk_metadata c ON o.chunk_id = c.id "
 			   "JOIN chunk_rtree r ON c.id = r.id "
-			   "WHERE r.minX <= ?"
-			<< (6 * i + 2) << " AND r.maxX >= ?" << (6 * i + 1)
-			<< " AND r.minY <= ?" << (6 * i + 4) << " AND r.maxY >= ?" << (6 * i + 3)
-			<< " AND r.minZ <= ?" << (6 * i + 6) << " AND r.maxZ >= ?" << (6 * i + 5);
+			   "WHERE r.maxX >= ?"<< (6 * i + 1) << " AND r.minX <= ?" << (6 * i + 2)
+			<< " AND r.maxY >= ?" << (6 * i + 3) << " AND r.minY <= ?" << (6 * i + 4)
+			<< " AND r.maxZ >= ?" << (6 * i + 5) << " AND r.minZ <= ?" << (6 * i + 6);
 	}
 
-	// 2. 准备语句并绑定所有矩形的参数
+	// 准备语句并绑定所有矩形的参数
 	SQLiteDB::Stmt stmt(db, sql.str());
 	for (size_t i = 0; i < aabbs.size(); ++i) {
 		bind_aabb(stmt, aabbs[i], 6 * i + 1); // start_idx = 6*i + 1
 	}
 
-	// 3. 执行并收集结果，map 自动去重
+	// 执行并收集结果，map 自动去重
 	while (stmt.step()) {
 		const void *blob = stmt.get_blob(0);
 		if (!blob)
