@@ -1,14 +1,9 @@
 [gd_scene format=3 uid="uid://b8o8ydqhshnli"]
 
-[ext_resource type="PackedScene" uid="uid://bp4qyjou0p7ci" path="res://stream_object_node.tscn" id="1_ig7tw"]
-
 [node name="Node3D" type="Node3D" unique_id=1494622027]
 
 [node name="StreamManager" type="StreamManager" parent="." unique_id=335644912]
 database_path = "res://db_data/test.db"
-
-[node name="StreamObjectNode" parent="StreamManager" unique_id=647105228 instance=ExtResource("1_ig7tw")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10.6273155, 0, -25.705671)
 
 [node name="StreamWorldProbe" type="StreamWorldProbe" parent="." unique_id=739599123]
 aabb = AABB(0, 0, 0, 159, 2605, 237)
