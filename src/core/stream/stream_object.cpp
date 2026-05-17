@@ -38,7 +38,7 @@ void StreamObjectNode::_notification(int p_what) {
 	if (!is_node_ready() || !is_inside_tree())
 		return;
 
-	// 可选：在编辑器中检测子节点变化以更新 aabb_sources 的显示，这里略
+	// TODO 进行更准确的判断
 	emit_signal("object_aabb_changed");
 }
 

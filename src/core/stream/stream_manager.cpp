@@ -49,7 +49,7 @@ void StreamManager::_process(double delta) {
 			std::vector<AABB> query_aabbs;
 			for (auto id : registered_probes_) {
 				StreamWorldProbe *probe = Object::cast_to<StreamWorldProbe>(ObjectDB::get_instance(id));
-				query_aabbs.push_back(probe->get_aabb());
+				query_aabbs.push_back(probe->get_global_aabb());
 			}
 
 			_query_aabb(query_aabbs);
@@ -325,6 +325,7 @@ void StreamManager::_on_query_result(const a_hashmap<uuids::uuid, ObjectData> &d
 	for (const auto &uuid : to_unload) {
 		UtilityFunctions::print("[StreamManager] Unload object: ", uuids::to_string(uuid).c_str());
 		_unload_object(uuid); // 会保存场景并缓存
+		registry_.erase(uuid);
 	}
 
 	// 合并数据库最新数据到注册表（保留 node_root 等运行时状态）
@@ -393,7 +394,6 @@ void StreamManager::_load_object_scene(const uuids::uuid &uuid) {
 }
 
 void StreamManager::_unload_object(const uuids::uuid &uuid) {
-	UtilityFunctions::print("[StreamManager] unload object: ", uuids::to_string(uuid).c_str());
 	if (!registry_.count(uuid))
 		return;
 

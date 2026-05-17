@@ -99,4 +99,9 @@ NodePath StreamWorldProbe::get_stream_manager_path() const {
 	return stream_manager_path_;
 }
 
+AABB StreamWorldProbe::get_global_aabb() const {
+	auto aabb = get_aabb();
+	return AABB(aabb.position + get_global_position() - aabb.size / 2, aabb.size);
+}
+
 } // namespace godot

@@ -24,6 +24,7 @@ public:
 	void set_stream_manager_path(NodePath manager);
 	NodePath get_stream_manager_path() const;
 
+	AABB get_global_aabb() const;
 protected:
 	void _on_visibility_changed();
 
