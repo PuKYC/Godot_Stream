@@ -367,6 +367,7 @@ void StreamManager::_load_object_scene(const uuids::uuid &uuid) {
 	String scene_path = _object_scene_path(uuid);
 	Node *node = cache_.acquire(uuid, scene_path);
 
+	// TODO 场景文件损坏会出现问题
 	if (!node) {
 		// 资源尚未缓存：发起异步加载请求，稍后再试
 		if (cache_.request_scene(uuid, scene_path))
@@ -439,6 +440,8 @@ void StreamManager::_save_object_to_file(const uuids::uuid &uuid, Node *node) {
 	// 打包整个 node 树
 	Ref<PackedScene> scene;
 	scene.instantiate();
+
+	scene->pack(node);
 
 	String path = _object_scene_path(uuid);
 	Error err = ResourceSaver::get_singleton()->save(scene, path, ResourceSaver::FLAG_COMPRESS);
