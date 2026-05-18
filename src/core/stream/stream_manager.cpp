@@ -35,6 +35,12 @@ void StreamManager::_ready() {
 }
 
 void StreamManager::_process(double delta) {
+	// 执行删除入队
+	for (auto uuid : object_removal_) {
+		remove_object(uuid);
+	}
+	call_deferred("_object_removal_swep");
+
 	// 异步数据库回调执行
 	if (db_worker_.is_valid()) {
 		// 批量数据库同步（含脏 AABB 处理）
@@ -153,8 +159,12 @@ void StreamManager::add_object(StreamObjectNode *node) {
 	_connect_node_signals(node);
 }
 
+void godot::StreamManager::remove_object(const uuids::uuid &uuid) {
+	object_removal_.insert(uuid);
+}
+
 // 对象移除但节点需手动删除
-void StreamManager::remove_object(const uuids::uuid &uuid) {
+void StreamManager::_remove_object(const uuids::uuid &uuid) {
 	UtilityFunctions::print("[StreamManager] remove_object: ", uuids::to_string(uuid).c_str());
 	// 收集所有要删除的 UUID（自身 + 全部子孙）
 	a_hashset<uuids::uuid> to_delete = _collect_descendants(uuid);
@@ -298,6 +308,7 @@ void StreamManager::_on_object_exited(Node *node) {
 	只执行上一帧的remove命令
 	*/
 	if (pending_removal_.count(uuid) || node->is_queued_for_deletion() || is_queued_for_deletion()) {
+		_save_object_to_file(uuid, node);
 		return;
 	}
 
@@ -311,6 +322,10 @@ void godot::StreamManager::_on_load_probe(StreamWorldProbe *probe) {
 
 void godot::StreamManager::_on_unload_probe(StreamWorldProbe *probe) {
 	registered_probes_.erase(probe->get_instance_id());
+}
+
+void godot::StreamManager::_object_removal_swep() {
+	object_removal_.swap(object_removal_swep_);
 }
 
 void StreamManager::_on_object_aabb_changed(StreamObjectNode *node) {
@@ -591,4 +606,6 @@ void StreamManager::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_object_aabb_changed"), &StreamManager::_on_object_aabb_changed);
 	ClassDB::bind_method(D_METHOD("_on_load_probe"), &StreamManager::_on_load_probe);
 	ClassDB::bind_method(D_METHOD("_on_unload_probe"), &StreamManager::_on_unload_probe);
+
+	ClassDB::bind_method(D_METHOD("_object_removal_swep"), &StreamManager::_object_removal_swep);
 }
