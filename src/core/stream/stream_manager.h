@@ -32,6 +32,7 @@ public:
 	~StreamManager();
 
 	void _ready() override;
+	void _exit_tree() override;
 	void _process(double delta) override;
 
 	// 公开接口（供编辑器/GDScript）

@@ -34,11 +34,16 @@ void StreamManager::_ready() {
 	}
 }
 
+void godot::StreamManager::_exit_tree() {
+	object_removal_.clear();
+}
+
 void StreamManager::_process(double delta) {
 	// 执行删除入队
 	for (auto uuid : object_removal_) {
-		remove_object(uuid);
+		_remove_object(uuid);
 	}
+	object_removal_.clear();
 	call_deferred("_object_removal_swep");
 
 	// 异步数据库回调执行
