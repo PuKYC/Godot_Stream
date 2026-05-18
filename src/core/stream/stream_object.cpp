@@ -44,13 +44,13 @@ void StreamObjectNode::_notification(int p_what) {
 
 // 仅获取自身aabb 不包括子对象
 AABB StreamObjectNode::get_aabb() const {
-	AABB total;
+	AABB total = AABB(get_global_position(), Vector3(0, 0, 0));
 
 	if (aabb_sources.size() == 0 or aabb_sources.is_empty()) {
-		return AABB(get_position(), Vector3(0, 0, 0));
+		return total;
 	}
 
-	// 1. 合并 aabb_sources 中指定的视觉实例（已在场景树中）
+	// 合并 aabb_sources 中指定的视觉实例（已在场景树中）
 	for (int i = 0; i < aabb_sources.size(); ++i) {
 		const NodePath path = aabb_sources[i];
 		if (has_node(path)) {

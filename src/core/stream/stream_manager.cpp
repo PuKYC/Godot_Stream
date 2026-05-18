@@ -325,7 +325,6 @@ void godot::StreamManager::_object_removal_swep() {
 void StreamManager::_on_object_aabb_changed(StreamObjectNode *node) {
 	uuids::uuid uuid = node->get_uuid();
 	if (registry_.count(uuid)) {
-		UtilityFunctions::print("[StreamManager] object_aabb_changed: ", uuids::to_string(uuid).c_str());
 		dirty_aabb_.insert(uuid); // 延迟至 _process 更新
 	}
 }
@@ -459,6 +458,7 @@ void StreamManager::_unload_object(const uuids::uuid &uuid) {
 		pending_removal_.erase(id);
 }
 
+// TODO 可能会引起主线程卡顿
 void StreamManager::_save_object_to_file(const uuids::uuid &uuid, Node *node) {
 	UtilityFunctions::print("[StreamManager] save_object: ", uuids::to_string(uuid).c_str());
 
