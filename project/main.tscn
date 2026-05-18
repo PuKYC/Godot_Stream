@@ -6,5 +6,5 @@
 database_path = "res://db_data/test.db"
 
 [node name="StreamWorldProbe" type="StreamWorldProbe" parent="." unique_id=739599123]
-aabb = AABB(0, 0, 0, 159, 2605, 237)
+aabb = AABB(0, 0, 0, 50, 50, 50)
 stream_manager_path = NodePath("../StreamManager")

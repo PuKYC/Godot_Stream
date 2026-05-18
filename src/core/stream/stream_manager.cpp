@@ -26,7 +26,7 @@ StreamManager::~StreamManager() {
 	if (db_worker_.is_valid()) {
 		_flush_pending_db_ops(); // 最后一次同步
 	}
-}
+} // db_worker_ Ref 在此处析构 → worker 线程可能已 join
 
 void StreamManager::_ready() {
 	if (!database_path_.is_empty()) {
@@ -96,9 +96,10 @@ void StreamManager::_init_database(const String &path) {
 			[]() {} // 无需回调
 	});
 
-	// 从数据库加载已持久化对象列表（同步，因为刚启动，轻量操作）
-	// 可通过 db_worker_ 提交同步任务或直接在构造函数中读取
-	// 此处略，实际可在 worker 创建后提交一个查询任务，在回调中填充 registry_
+	/* TODO 从数据库加载已持久化对象列表（同步，因为刚启动，轻量操作）
+	可通过 db_worker_ 提交同步任务或直接在构造函数中读取
+	此处略，实际可在 worker 创建后提交一个查询任务，在回调中填充 registry_
+	*/
 }
 
 // 公开接口
@@ -231,6 +232,8 @@ void godot::StreamManager::_query_aabb(std::vector<AABB> &aabbs) {
 	db_worker_->push_task({ [aabbs, result_ptr](StreamSqliteDB &db) {
 							   // 将查询结果赋值给 shared_ptr 指向的 map
 							   *result_ptr = db.query_objects(aabbs);
+
+							   // TODO print不是线程安全
 							   UtilityFunctions::print("[StreamManager] query_aabb: ", aabbs.size(), " find: ", result_ptr->size(), " objects");
 						   },
 							[this, result_ptr]() {
@@ -259,6 +262,7 @@ String StreamManager::_derive_object_dir(const String &db_path) const {
 // 内部槽：节点进入树
 void StreamManager::_on_object_entered(Node *node) {
 	// 过滤节点
+	// TODO 可使用 cast_to 判断
 	if (!node->is_class("StreamObjectNode"))
 		return;
 
@@ -278,16 +282,25 @@ void StreamManager::_on_object_entered(Node *node) {
 
 // 槽函数
 void StreamManager::_on_object_exited(Node *node) {
+	// 可使用 cast_to 判断
 	if (!node->is_class("StreamObjectNode"))
 		return;
 
 	auto obj = Object::cast_to<StreamObjectNode>(node);
 
+	UtilityFunctions::print("[StreamManager] object_exited: ", node->get_name());
+
 	uuids::uuid uuid = obj->get_uuid();
-	// TODO 有概率绕过
+
+	/*
+	TODO 有概率绕过
+	设置交换分区
+	只执行上一帧的remove命令
+	*/
 	if (pending_removal_.count(uuid) || node->is_queued_for_deletion() || is_queued_for_deletion()) {
 		return;
 	}
+
 	// 否则是用户手动删除，执行完整移除逻辑
 	remove_object(uuid);
 }
@@ -324,7 +337,6 @@ void StreamManager::_on_query_result(const a_hashmap<uuids::uuid, ObjectData> &d
 		}
 	}
 	for (const auto &uuid : to_unload) {
-		UtilityFunctions::print("[StreamManager] Unload object: ", uuids::to_string(uuid).c_str());
 		_unload_object(uuid); // 会保存场景并缓存
 		registry_.erase(uuid);
 	}
@@ -386,8 +398,9 @@ void StreamManager::_load_object_scene(const uuids::uuid &uuid) {
 	}
 
 	// 设置所有者并挂载
-	add_child(node, true);
-	node->set_owner(get_owner());
+	add_child(stream_node, true);
+	stream_node->set_owner(get_owner()); // TODO 未考虑自身为父节点的情况
+	notify_property_list_changed();
 
 	_connect_node_signals(stream_node);
 
@@ -395,6 +408,7 @@ void StreamManager::_load_object_scene(const uuids::uuid &uuid) {
 }
 
 void StreamManager::_unload_object(const uuids::uuid &uuid) {
+	UtilityFunctions::print("[StreamManager] Unload object: ", uuids::to_string(uuid).c_str());
 	if (!registry_.count(uuid))
 		return;
 
@@ -420,6 +434,7 @@ void StreamManager::_unload_object(const uuids::uuid &uuid) {
 		if (obj_node) {
 			_save_object_to_file(uuid, obj_node);
 			remove_child(obj_node);
+			obj_node->set_owner(nullptr);
 			cache_.release(uuid, obj_node);
 		}
 	}
@@ -522,6 +537,7 @@ void StreamManager::_flush_pending_db_ops() {
 								   // 聚合自身与所有子对象的 AABB
 								   godot::AABB agg_aabb = aabb;
 								   for (const auto &[child, ca] : db.query_children_aabb(uuid)) {
+									   // TODO 等值判断有问题
 									   if (!(ca.size.x == 0 && ca.size.y == 0 && ca.size.z == 0 && ca.position.x == 0 && ca.position.y == 0 && ca.position.z == 0))
 										   agg_aabb = agg_aabb.merge(ca);
 								   }
