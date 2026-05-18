@@ -242,11 +242,10 @@ void godot::StreamManager::_query_aabb(std::vector<AABB> &aabbs) {
 	db_worker_->push_task({ [aabbs, result_ptr](StreamSqliteDB &db) {
 							   // 将查询结果赋值给 shared_ptr 指向的 map
 							   *result_ptr = db.query_objects(aabbs);
-
-							   // TODO print不是线程安全
-							   UtilityFunctions::print("[StreamManager] query_aabb: ", aabbs.size(), " find: ", result_ptr->size(), " objects");
 						   },
-							[this, result_ptr]() {
+							[this, result_ptr, aabbs]() {
+								// TODO print
+								UtilityFunctions::print("[StreamManager] query_aabb: ", static_cast<uint64_t>(aabbs.size()), " find: ", static_cast<uint64_t>(result_ptr->size()), " objects");
 								_on_query_result(*result_ptr);
 							} });
 }
@@ -302,11 +301,6 @@ void StreamManager::_on_object_exited(Node *node) {
 
 	uuids::uuid uuid = obj->get_uuid();
 
-	/*
-	TODO 有概率绕过
-	设置交换分区
-	只执行上一帧的remove命令
-	*/
 	if (pending_removal_.count(uuid) || node->is_queued_for_deletion() || is_queued_for_deletion()) {
 		_save_object_to_file(uuid, node);
 		return;
