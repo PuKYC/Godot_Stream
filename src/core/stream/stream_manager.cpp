@@ -2,6 +2,7 @@
 
 #include <godot_cpp/classes/dir_access.hpp>
 #include <godot_cpp/classes/engine.hpp>
+#include <godot_cpp/classes/os.hpp>
 #include <godot_cpp/classes/file_access.hpp>
 #include <godot_cpp/classes/packed_scene.hpp>
 #include <godot_cpp/classes/resource_loader.hpp>
@@ -472,11 +473,12 @@ void StreamManager::_save_object_to_file(const uuids::uuid &uuid, Node *node) {
 	// 打包整个 node 树
 	Ref<PackedScene> scene;
 	scene.instantiate();
-
 	scene->pack(node);
 
 	String path = _object_scene_path(uuid);
+
 	Error err = ResourceSaver::get_singleton()->save(scene, path, ResourceSaver::FLAG_COMPRESS);
+	
 	if (err != OK) {
 		ERR_PRINT("Failed to save scene to " + path);
 	}
