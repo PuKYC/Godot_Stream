@@ -9,7 +9,6 @@ ObjectSceneCache::ObjectSceneCache(size_t scene_cap, size_t node_cap) :
 	node_cache_capacity = node_cap;
 	scene_cache_capacity = scene_cap;
 	node_evict_ = [](Node *node) {
-		// TODO 会导致错误释放(存疑)
 		UtilityFunctions::print("[ObjectSceneCache] Evict node: " + node->get_name());
 		if (node)
 			node->queue_free();

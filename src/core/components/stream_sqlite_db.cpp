@@ -283,6 +283,7 @@ int StreamSqliteDB::query_chunk(const Chunk chunk) {
 	return id;
 }
 
+// TODO 建议改名重写
 ObjectData StreamSqliteDB::query_object(const uuids::uuid uuid) {
 	sql_query_object.bind_blob(1, &uuid, sizeof(uuids::uuid));
 	ObjectData result;

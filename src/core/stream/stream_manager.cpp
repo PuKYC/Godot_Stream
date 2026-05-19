@@ -39,7 +39,7 @@ void godot::StreamManager::_exit_tree() {
 }
 
 void StreamManager::_process(double delta) {
-	// TODO 时机不对
+	// FIXME 时机不对
 	// 执行删除
 	for (auto uuid : object_removal_) {
 		_remove_object(uuid);
@@ -255,7 +255,6 @@ void godot::StreamManager::_query_aabb(std::vector<AABB> &aabbs) {
 							   *result_ptr = db.query_objects(aabbs);
 						   },
 							[this, result_ptr, aabbs]() {
-								// TODO print
 								UtilityFunctions::print("[StreamManager] query_aabb: ", static_cast<uint64_t>(aabbs.size()), " find: ", static_cast<uint64_t>(result_ptr->size()), " objects");
 								_on_query_result(*result_ptr);
 							} });
@@ -415,7 +414,7 @@ void StreamManager::_load_object_scene(const uuids::uuid &uuid) {
 
 	// 设置所有者并挂载
 	add_child(stream_node, true);
-	stream_node->set_owner(get_owner()); // TODO 未考虑自身为父节点的情况
+	stream_node->set_owner(get_owner() ? get_owner() : get_parent());
 	notify_property_list_changed();
 
 	_connect_node_signals(stream_node);
@@ -466,7 +465,7 @@ void StreamManager::_unload_object(const uuids::uuid &uuid) {
 		pending_removal_.erase(id);
 }
 
-// TODO 可能会引起主线程卡顿
+// FIXME 可能会引起主线程卡顿
 void StreamManager::_save_object_to_file(const uuids::uuid &uuid, Node *node) {
 	UtilityFunctions::print("[StreamManager] save_object: ", uuids::to_string(uuid).c_str());
 
@@ -554,9 +553,7 @@ void StreamManager::_flush_pending_db_ops() {
 								   // 聚合自身与所有子对象的 AABB
 								   godot::AABB agg_aabb = aabb;
 								   for (const auto &[child, ca] : db.query_children_aabb(uuid)) {
-									   // TODO 等值判断有问题
-									   if (!(ca.size.x == 0 && ca.size.y == 0 && ca.size.z == 0 && ca.position.x == 0 && ca.position.y == 0 && ca.position.z == 0))
-										   agg_aabb = agg_aabb.merge(ca);
+									   agg_aabb = agg_aabb.merge(ca);
 								   }
 
 								   Chunk chunk = Chunk::compute_chunk(agg_aabb);
@@ -575,13 +572,9 @@ void StreamManager::_flush_pending_db_ops() {
 									   // 聚合祖先的 AABB（自身 + 所有子对象）
 									   godot::AABB parent_agg = db.get_object_aabb(parent);
 									   for (const auto &[child, ca] : db.query_children_aabb(parent)) {
-										   if (!(ca.size.x == 0 && ca.size.y == 0 && ca.size.z == 0 && ca.position.x == 0 && ca.position.y == 0 && ca.position.z == 0))
-											   parent_agg = parent_agg.merge(ca);
+										   parent_agg = parent_agg.merge(ca);
 									   }
 
-									   // 父对象 AABB 从未写入（所有字段 NULL），跳过整个父链
-									   if (parent_agg.size.x == 0 && parent_agg.size.y == 0 && parent_agg.size.z == 0 && parent_agg.position.x == 0 && parent_agg.position.y == 0 && parent_agg.position.z == 0)
-										   break;
 									   Chunk parent_chunk = Chunk::compute_chunk(parent_agg);
 									   int parent_chunk_id = db.query_chunk(parent_chunk);
 
