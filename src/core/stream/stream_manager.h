@@ -48,7 +48,7 @@ public:
 	void _on_unload_probe(StreamWorldProbe *probe);
 
 	// _object_removal_swep 容器交换回调
-	void _object_removal_swep();
+	void _object_removal_swap();
 
 	// 对象管理（由 StreamObjectNode 信号触发）
 	void add_object(StreamObjectNode *node); // 可能通过 manager通知触发
@@ -70,12 +70,13 @@ private:
 	// 缓存与加载
 	ObjectSceneCache cache_;
 	std::queue<uuids::uuid> load_queue_; // 待挂载的 UUID
+	std::queue<uuids::uuid> loaded_queue_;//  这帧已经加载过的UUID
 
 	a_hashmap<uuids::uuid, ObjectData> registry_; // 内存注册表：uuid → ObjectData（仅主线程访问）
 	a_hashmap<uuids::uuid, a_hashset<uuids::uuid>> children_map_; // 父子关系辅助：parent_uuid → set<child_uuid>
 	
 	// 只处理上帧的删除(为了避免场景退出的时候对象没有删除标志位而导致的错误删除)
-	a_hashset<uuids::uuid> object_removal_swep_;// 上帧收集到的
+	a_hashset<uuids::uuid> object_removal_swap_;// 上帧收集到的
 	a_hashset<uuids::uuid> object_removal_;// 这帧收集到的
 	a_hashset<uuids::uuid> pending_removal_; // manager删除标志位
 

@@ -67,6 +67,7 @@ private:
 	};
 	std::vector<LoadingEntry> loading_requests_; // 正在进行的异步请求
 	a_hashset<uuids::uuid> loading_set_; // 快速查询 UUID 是否在加载中
+	a_hashset<uuids::uuid> remove_loading_set_; // 不能正常加载的场景uuid列表
 
 	lru_cache_t<uuids::uuid, Node *> node_cache_;
 	lru_cache_t<uuids::uuid, Ref<PackedScene>> scene_cache_;

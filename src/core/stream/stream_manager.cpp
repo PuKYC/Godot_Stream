@@ -39,12 +39,13 @@ void godot::StreamManager::_exit_tree() {
 }
 
 void StreamManager::_process(double delta) {
-	// 执行删除入队
+	// TODO 时机不对
+	// 执行删除
 	for (auto uuid : object_removal_) {
 		_remove_object(uuid);
 	}
 	object_removal_.clear();
-	call_deferred("_object_removal_swep");
+	call_deferred("_object_removal_swap");
 
 	// 异步数据库回调执行
 	if (db_worker_.is_valid()) {
@@ -83,6 +84,11 @@ void StreamManager::_process(double delta) {
 		_load_object_scene(uuid);
 
 		++loads;
+	}
+	while (!loaded_queue_.empty()) {
+		uuids::uuid uuid = loaded_queue_.front();
+		load_queue_.push(uuid);
+		loaded_queue_.pop();
 	}
 }
 
@@ -276,11 +282,10 @@ String StreamManager::_derive_object_dir(const String &db_path) const {
 // 内部槽：节点进入树
 void StreamManager::_on_object_entered(Node *node) {
 	// 过滤节点
-	// TODO 可使用 cast_to 判断
-	if (!node->is_class("StreamObjectNode"))
+	auto obj = Object::cast_to<StreamObjectNode>(node);
+	if (!obj)
 		return;
 
-	auto obj = Object::cast_to<StreamObjectNode>(node);
 	uuids::uuid uuid = obj->get_uuid();
 	if (uuid.is_nil()) {
 		uuid = _generate_uuid();
@@ -296,11 +301,9 @@ void StreamManager::_on_object_entered(Node *node) {
 
 // 槽函数
 void StreamManager::_on_object_exited(Node *node) {
-	// 可使用 cast_to 判断
-	if (!node->is_class("StreamObjectNode"))
-		return;
-
 	auto obj = Object::cast_to<StreamObjectNode>(node);
+	if (!obj)
+		return;
 
 	UtilityFunctions::print("[StreamManager] object_exited: ", node->get_name());
 
@@ -323,8 +326,8 @@ void godot::StreamManager::_on_unload_probe(StreamWorldProbe *probe) {
 	registered_probes_.erase(probe->get_instance_id());
 }
 
-void godot::StreamManager::_object_removal_swep() {
-	object_removal_.swap(object_removal_swep_);
+void godot::StreamManager::_object_removal_swap() {
+	object_removal_.swap(object_removal_swap_);
 }
 
 void StreamManager::_on_object_aabb_changed(StreamObjectNode *node) {
@@ -394,11 +397,11 @@ void StreamManager::_load_object_scene(const uuids::uuid &uuid) {
 	String scene_path = _object_scene_path(uuid);
 	Node *node = cache_.acquire(uuid, scene_path);
 
-	// TODO 场景文件损坏会出现问题
 	if (!node) {
 		// 资源尚未缓存：发起异步加载请求，稍后再试
-		if (cache_.request_scene(uuid, scene_path))
-			load_queue_.push(uuid); // 重新入队等待加载完成
+		if (cache_.request_scene(uuid, scene_path)) {
+			loaded_queue_.push(uuid); // 重新入队等待加载完成
+		}
 		return;
 	}
 
@@ -431,7 +434,7 @@ void StreamManager::_unload_object(const uuids::uuid &uuid) {
 		pending_removal_.insert(id);
 	}
 
-	// TODO 应该有更好的方法实现
+	// TODO 使用递归可能导致栈溢出
 	// 递归卸载子对象（深度优先，保存并缓存子节点）
 	if (children_map_.count(uuid)) {
 		auto children = children_map_[uuid]; // 拷贝，避免迭代中修改
@@ -606,5 +609,5 @@ void StreamManager::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_load_probe"), &StreamManager::_on_load_probe);
 	ClassDB::bind_method(D_METHOD("_on_unload_probe"), &StreamManager::_on_unload_probe);
 
-	ClassDB::bind_method(D_METHOD("_object_removal_swep"), &StreamManager::_object_removal_swep);
+	ClassDB::bind_method(D_METHOD("_object_removal_swap"), &StreamManager::_object_removal_swap);
 }

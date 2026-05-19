@@ -1,10 +1,18 @@
 [gd_scene format=3 uid="uid://b8o8ydqhshnli"]
 
+[ext_resource type="PackedScene" uid="uid://bwltcuprdsghd" path="res://db_data/.test/b0d3ff69-3328-4b93-86a2-659f4ccde328.tscn" id="1_ig7tw"]
+
 [node name="Node3D" type="Node3D" unique_id=1494622027]
 
 [node name="StreamManager" type="StreamManager" parent="." unique_id=335644912]
 database_path = "res://db_data/test.db"
 
+[node name="1" type="StreamObjectNode" parent="StreamManager" unique_id=183445819 instance=ExtResource("1_ig7tw")]
+uuid = "b0d3ff69-3328-4b93-86a2-659f4ccde328"
+aabb_sources = Array[NodePath]([NodePath("MeshInstance3D")])
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 55.477715)
+
 [node name="StreamWorldProbe" type="StreamWorldProbe" parent="." unique_id=739599123]
 aabb = AABB(0, 0, 0, 50, 50, 50)
 stream_manager_path = NodePath("../StreamManager")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 82.47438)

@@ -9,10 +9,10 @@ ObjectSceneCache::ObjectSceneCache(size_t scene_cap, size_t node_cap) :
 	node_cache_capacity = node_cap;
 	scene_cache_capacity = scene_cap;
 	node_evict_ = [](Node *node) {
-		// TODO 会导致错误释放
-		// UtilityFunctions::print("[ObjectSceneCache] Evict node: " + node->get_name());
-		// if (node)
-		// 	node->queue_free();
+		// TODO 会导致错误释放(存疑)
+		UtilityFunctions::print("[ObjectSceneCache] Evict node: " + node->get_name());
+		if (node)
+			node->queue_free();
 	};
 }
 
@@ -32,13 +32,14 @@ Node *ObjectSceneCache::acquire(const uuids::uuid &uuid, const String &scene_pat
 	// 节点缓存优先
 	auto result = node_cache_.TryGet(uuid); // 返回 std::pair<Node*, bool>
 	if (result.second) { // 如果找到了节点
-		node_cache_.Remove(uuid); // 从缓存中移除
+		UtilityFunctions::print("[ObjectSceneCache] find node cache: ", uuids::to_string(uuid).c_str());
 		return result.first; // 返回节点指针
 	}
 
 	// 场景资源缓存命中
 	Ref<PackedScene> scene = get_scene(uuid);
 	if (scene.is_valid()) {
+		UtilityFunctions::print("[ObjectSceneCache] find scene cache: ", uuids::to_string(uuid).c_str());
 		return scene->instantiate(); // 同步实例化，开销很小
 	}
 
@@ -52,14 +53,18 @@ void ObjectSceneCache::release(const uuids::uuid &uuid, Node *node) {
 		return;
 
 	auto old = node_cache_.TryGet(uuid);
-	if (old.second) {
-		evict_node(old.first);
-	}
+
 	node_cache_.Put(uuid, node);
 }
 
 // 异步加载管理
 bool ObjectSceneCache::request_scene(const uuids::uuid &uuid, const String &scene_path) {
+	// 如果目标文件损坏
+	if (remove_loading_set_.count(uuid)) {
+		remove_loading_set_.erase(uuid);
+		return false;
+	}
+
 	// 已缓存或正在加载则忽略
 	if (get_scene(uuid).is_valid() || loading_set_.count(uuid)) {
 		return true;
@@ -94,6 +99,7 @@ void ObjectSceneCache::update() {
 		} else if (status == ResourceLoader::ThreadLoadStatus::THREAD_LOAD_FAILED) {
 			loading_set_.erase(it->uuid);
 			it = loading_requests_.erase(it);
+			remove_loading_set_.insert(it->uuid);
 			// 可选错误日志
 		} else {
 			++it;
