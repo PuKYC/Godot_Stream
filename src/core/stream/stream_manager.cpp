@@ -2,8 +2,8 @@
 
 #include <godot_cpp/classes/dir_access.hpp>
 #include <godot_cpp/classes/engine.hpp>
-#include <godot_cpp/classes/os.hpp>
 #include <godot_cpp/classes/file_access.hpp>
+#include <godot_cpp/classes/os.hpp>
 #include <godot_cpp/classes/packed_scene.hpp>
 #include <godot_cpp/classes/resource_loader.hpp>
 #include <godot_cpp/classes/resource_saver.hpp>
@@ -475,7 +475,7 @@ void StreamManager::_save_object_to_file(const uuids::uuid &uuid, Node *node) {
 	String path = _object_scene_path(uuid);
 
 	Error err = ResourceSaver::get_singleton()->save(scene, path, ResourceSaver::FLAG_COMPRESS);
-	
+
 	if (err != OK) {
 		ERR_PRINT("Failed to save scene to " + path);
 	}
@@ -535,6 +535,8 @@ void StreamManager::_flush_pending_db_ops() {
 	auto dirty_result = std::make_shared<a_hashmap<uuids::uuid, int>>();
 
 	db_worker_->push_task({ [upsert_data, remove, dirty_data, dirty_result](StreamSqliteDB &db) {
+							   db.db.exec("BEGIN TRANSACTION;");
+
 							   // 删除
 							   for (const auto &uuid : *remove)
 								   db.remove_object(uuid);
@@ -583,6 +585,7 @@ void StreamManager::_flush_pending_db_ops() {
 									   parent = parent_data.parent_uuid;
 								   }
 							   }
+							   db.db.exec("COMMIT;");
 						   },
 							[]() {
 							} });
