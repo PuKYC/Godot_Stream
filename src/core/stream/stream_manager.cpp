@@ -1,5 +1,7 @@
 #include "stream_manager.h"
 
+#include <chrono>
+
 #include <godot_cpp/classes/dir_access.hpp>
 #include <godot_cpp/classes/engine.hpp>
 #include <godot_cpp/classes/file_access.hpp>
@@ -336,6 +338,8 @@ void StreamManager::_on_object_aabb_changed(StreamObjectNode *node) {
 
 // 异步查询结果处理
 void StreamManager::_on_query_result(const a_hashmap<uuids::uuid, ObjectData> &db_objects) {
+	auto start = std::chrono::high_resolution_clock::now();
+
 	// 构建新数据集的 UUID 集合
 	a_hashset<uuids::uuid> new_set;
 	for (const auto &pair : db_objects) {
@@ -382,6 +386,10 @@ void StreamManager::_on_query_result(const a_hashmap<uuids::uuid, ObjectData> &d
 			load_queue_.push(pair.first);
 		}
 	}
+
+	auto end = std::chrono::high_resolution_clock::now();
+
+	UtilityFunctions::print("[StreamManager] query_result: ", end-start);
 }
 
 void StreamManager::_load_object_scene(const uuids::uuid &uuid) {
