@@ -23,7 +23,7 @@ jobs:
       - name: Build GDExtension
         run: |
           pip install scons
-          scons platform=linux target=template_debug -j$(nproc)
+          scons platform=linux target=template_debug dev_build=yes -j$(nproc)
 
       - name: Install perf & FlameGraph
         run: |
@@ -33,11 +33,8 @@ jobs:
 
       - name: Profile scene
         run: |
-          Xvfb :99 -screen 0 1024x768x24 &
-          export DISPLAY=:99
-          
-          godot --path ./project --import
-          godot --path ./project main.tscn & GODOT_PID=$!
+          xvfb-run --auto-servernum godot --headless --rendering-driver opengl3 --path ./project --import
+          godot --headless --path ./project main.tscn & GODOT_PID=$!
           sleep 10
           sudo perf record -F 99 -g -p $GODOT_PID --exclude-kernel -o perf.data -- sleep 25
           sudo chown $(id -u):$(id -g) perf.data
