@@ -46,7 +46,6 @@ void StreamManager::_process(double delta) {
 		_remove_object(uuid);
 	}
 	object_removal_.clear();
-	call_deferred("_object_removal_swap");
 
 	// 异步数据库回调执行
 	if (db_worker_.is_valid()) {
@@ -328,10 +327,6 @@ void godot::StreamManager::_on_unload_probe(StreamWorldProbe *probe) {
 	registered_probes_.erase(probe->get_instance_id());
 }
 
-void godot::StreamManager::_object_removal_swap() {
-	object_removal_.swap(object_removal_swap_);
-}
-
 void StreamManager::_on_object_aabb_changed(StreamObjectNode *node) {
 	uuids::uuid uuid = node->get_uuid();
 	if (registry_.count(uuid)) {
@@ -605,6 +600,4 @@ void StreamManager::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_object_aabb_changed"), &StreamManager::_on_object_aabb_changed);
 	ClassDB::bind_method(D_METHOD("_on_load_probe"), &StreamManager::_on_load_probe);
 	ClassDB::bind_method(D_METHOD("_on_unload_probe"), &StreamManager::_on_unload_probe);
-
-	ClassDB::bind_method(D_METHOD("_object_removal_swap"), &StreamManager::_object_removal_swap);
 }

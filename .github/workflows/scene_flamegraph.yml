@@ -35,7 +35,7 @@ jobs:
         run: |
           xvfb-run --auto-servernum godot --path ./project --import
           godot --headless --path ./project main.tscn & GODOT_PID=$!
-          sleep 10
+          sleep 60
           sudo perf record -F 99 -g -p $GODOT_PID -o perf.data -- sleep 25
           sudo chown $(id -u):$(id -g) perf.data
           kill $GODOT_PID
