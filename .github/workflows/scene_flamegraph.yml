@@ -42,9 +42,7 @@ jobs:
 
       - name: Generate flamegraph
         run: |
-          perf script -F comm,pid,tid,time,event,ip,sym,dso \
-          --dso=libStreamWorld.linux.template_debug.x86_64.so \
-          -i perf.data > out.perf
+          perf script -F comm,pid,tid,time,event,ip,sym,dso -i perf.data > out.perf
           ./FlameGraph/stackcollapse-perf.pl out.perf > out.folded
           ./FlameGraph/flamegraph.pl out.folded > flamegraph.svg
 
