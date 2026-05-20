@@ -40,6 +40,11 @@ jobs:
           sudo chown $(id -u):$(id -g) perf.data
           kill $GODOT_PID
 
+      - name: Debug perf data
+        run: |
+          ls -lh perf.data
+          perf report -i perf.data --stdio | head -20   # 或 perf script -i perf.data 直接看报错
+
       - name: Generate flamegraph
         run: |
           perf script > out.perf

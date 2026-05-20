@@ -2,30 +2,93 @@
 
 [ext_resource type="PackedScene" uid="uid://cvooaiv7t3xss" path="res://db_data/.test/a95077ef-5161-4e9b-a121-e45adeac4f26.tscn" id="1_1bvp3"]
 [ext_resource type="Script" uid="uid://bsrtjjuklaxvx" path="res://stream_world_probe.gd" id="2_0xm2m"]
-[ext_resource type="PackedScene" uid="uid://cu2oop3qy0ked" path="res://db_data/.test/4ee869d3-f7c3-4c25-9464-c181f8b1dd75.tscn" id="2_lquwl"]
+[ext_resource type="PackedScene" uid="uid://2vo85wac5dmm" path="res://db_data/.test/4ee869d3-f7c3-4c25-9464-c181f8b1dd75.tscn" id="2_lquwl"]
 [ext_resource type="PackedScene" uid="uid://dpsw1ge7va38m" path="res://db_data/.test/012cd386-9bd1-4f29-968d-bc74a5cd30f9.tscn" id="3_7mycd"]
+[ext_resource type="PackedScene" uid="uid://drgs76ylvqdq5" path="res://db_data/.test/b0d3ff69-3328-4b93-86a2-659f4ccde328.tscn" id="4_7mycd"]
+[ext_resource type="PackedScene" uid="uid://dmnwlrdb8hkv4" path="res://node_3d.tscn" id="5_272bh"]
+[ext_resource type="PackedScene" uid="uid://dfv8n47i7icxa" path="res://3jiao.tscn" id="6_5vw27"]
 
 [node name="Node3D" type="Node3D" unique_id=1494622027]
 
 [node name="StreamManager" type="StreamManager" parent="." unique_id=335644912]
 database_path = "res://db_data/test.db"
 
-[node name="1" type="StreamObjectNode" parent="StreamManager" unique_id=775159224 instance=ExtResource("1_1bvp3")]
-uuid = "a95077ef-5161-4e9b-a121-e45adeac4f26"
-aabb_sources = Array[NodePath]([NodePath("MeshInstance3D")])
+[node name="4" parent="StreamManager" unique_id=418293894 instance=ExtResource("3_7mycd")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -24.586933)
 
-[node name="2" type="StreamObjectNode" parent="StreamManager" unique_id=1399388239 instance=ExtResource("2_lquwl")]
-uuid = "4ee869d3-f7c3-4c25-9464-c181f8b1dd75"
-aabb_sources = Array[NodePath]([NodePath("MeshInstance3D")])
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -31.220482, 0, 0)
+[node name="1" parent="StreamManager" unique_id=775159224 instance=ExtResource("1_1bvp3")]
 
-[node name="4" type="StreamObjectNode" parent="StreamManager" unique_id=418293894 instance=ExtResource("3_7mycd")]
-uuid = "012cd386-9bd1-4f29-968d-bc74a5cd30f9"
-aabb_sources = Array[NodePath]([NodePath("MeshInstance3D")])
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -66.10981)
+[node name="2" parent="StreamManager" unique_id=1399388239 instance=ExtResource("2_lquwl")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24.973377, 0, 0)
 
-[node name="StreamWorldProbe" type="StreamWorldProbe" parent="." unique_id=739599123]
-aabb = AABB(0, 0, 0, 75, 75, 75)
-stream_manager_path = NodePath("../StreamManager")
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -69.37075)
+[node name="6" parent="StreamManager" unique_id=313473939 instance=ExtResource("5_272bh")]
+uuid = "6e90212e-eb03-4075-a2c0-9de13872270e"
+aabb_sources = Array[NodePath]([NodePath("../1/MeshInstance3D")])
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24.617949, 0, -24.14421)
+
+[node name="5" parent="StreamManager" unique_id=230258918 instance=ExtResource("5_272bh")]
+uuid = "20caf432-c49e-48e8-82ee-be991cc437a3"
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24.20209, 0, 0)
+
+[node name="9" parent="StreamManager" unique_id=1182686939 instance=ExtResource("5_272bh")]
+uuid = "e83651e9-b498-446e-ad87-c8cbbe90036c"
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24.162243, 0, -24.578365)
+
+[node name="Node3D5" parent="StreamManager" unique_id=1231900776 instance=ExtResource("6_5vw27")]
+uuid = "956f4fef-1095-4210-ac5a-7ac454987a4a"
+transform = Transform3D(0.8431006, 0, -0.53775585, -0.17161119, 0.9477127, -0.26905426, 0.5096381, 0.31912473, 0.7990172, -6.1096735, 1.9184861, -24.45377)
+
+[node name="Node3D6" parent="StreamManager" unique_id=1922225066 instance=ExtResource("6_5vw27")]
+uuid = "1b7eb6c6-d9ea-4079-bb9f-dee87553d79a"
+transform = Transform3D(1, 0, 0, 0, 0.7921618, -0.6103111, 0, 0.6103111, 0.7921618, -7.2426176, 1.4993873, -14.22924)
+
+[node name="Node3D10" parent="StreamManager" unique_id=734312150 instance=ExtResource("6_5vw27")]
+uuid = "bf309944-1a10-46eb-8185-6481edf335dc"
+aabb_sources = Array[NodePath]([NodePath("../Node3D/MeshInstance3D")])
+transform = Transform3D(-0.0672652, -0.9946163, 0.07882704, -0.6456216, 0.10362581, 0.75659394, -0.76068926, 0, -0.6491162, 14.790493, 3.0235863, 0)
+
+[node name="3" parent="StreamManager" unique_id=183445819 instance=ExtResource("4_7mycd")]
+
+[node name="7" parent="StreamManager" unique_id=2045914295 instance=ExtResource("5_272bh")]
+uuid = "a6a5be8c-e765-4f54-b8f1-22aab503699e"
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24.594288, 0, 24.907986)
+
+[node name="Node3D4" parent="StreamManager" unique_id=1115971946 instance=ExtResource("6_5vw27")]
+uuid = "57eec7e7-fe79-44f7-8036-334619d2829a"
+transform = Transform3D(0.58936554, 0, 0.80786645, 0, 1, 0, -0.80786645, 0, 0.58936554, 0, 1.3167019, 9.319294)
+
+[node name="Node3D2" parent="StreamManager" unique_id=261736450 instance=ExtResource("6_5vw27")]
+uuid = "1c26962a-a12e-470b-8ec3-e828505bcfd3"
+transform = Transform3D(0.6488639, -0.7609045, 0, 0.7609045, 0.6488639, 0, 0, 0, 1, 18.6501, 1.0782862, 9.523796)
+
+[node name="Node3D3" parent="StreamManager" unique_id=1609798908 instance=ExtResource("6_5vw27")]
+uuid = "ed949206-8ff9-40b7-98a3-db9755630317"
+transform = Transform3D(0.90863943, 0, 0.41758165, 0, 1, 0, -0.41758165, 0, 0.90863943, -9.646208, 1.2079387, 0)
+
+[node name="Node3D" parent="StreamManager" unique_id=742401425 instance=ExtResource("6_5vw27")]
+uuid = "0ffd2052-29a9-41dd-9b8b-9f14b664299a"
+transform = Transform3D(0.19079186, 0, -0.9816305, 0, 1, 0, 0.9816305, 0, 0.19079186, 0, 1.205174, -9.895978)
+
+[node name="Node3D7" parent="StreamManager" unique_id=9099738 instance=ExtResource("6_5vw27")]
+uuid = "50827427-dcb0-469c-9bdb-495e0135de8c"
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.156136, 1.627698, 6.4602137)
+
+[node name="Node3D8" parent="StreamManager" unique_id=474067812 instance=ExtResource("6_5vw27")]
+uuid = "371c2d12-4b7c-4bae-aeb1-7f0d47c88487"
+transform = Transform3D(-0.6705496, -0.7356697, 0.09567323, -0.61287725, 0.47666785, -0.63021344, 0.4180246, -0.4812253, -0.77050465, 0, 2.013929, 22.12125)
+
+[node name="Node3D9" parent="StreamManager" unique_id=142379212 instance=ExtResource("6_5vw27")]
+uuid = "0dce2a73-fc61-4023-af7c-c060eaaafeaf"
+transform = Transform3D(0.60834545, 0.025796056, 0.79325306, -0.27162927, 0.94588184, 0.177553, -0.7457435, -0.3234843, 0.5824299, -6.9288216, 2.7194805, 22.34488)
+
+[node name="8" parent="StreamManager" unique_id=747352324 instance=ExtResource("5_272bh")]
+uuid = "3a7eb3dc-77b7-42b7-bf9c-1fea00744562"
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24.349033, 0, 24.970743)
+
+[node name="Camera3D" type="Camera3D" parent="." unique_id=575639519]
+transform = Transform3D(0.9837443, 0, -0.1795749, 0, 1, 0, 0.1795749, 0, 0.9837443, 0, 5, 15.574609)
 script = ExtResource("2_0xm2m")
+
+[node name="StreamWorldProbe" type="StreamWorldProbe" parent="Camera3D" unique_id=739599123]
+aabb = AABB(0, 0, 0, 75, 75, 75)
+stream_manager_path = NodePath("../../StreamManager")

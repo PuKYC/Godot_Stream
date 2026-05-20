@@ -10,7 +10,7 @@ size = Vector3(25, 0.03, 25)
 [node name="2" type="StreamObjectNode" unique_id=1399388239]
 uuid = "4ee869d3-f7c3-4c25-9464-c181f8b1dd75"
 aabb_sources = Array[NodePath]([NodePath("MeshInstance3D")])
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -31.220482, 0, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24.973377, 0, 0)
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1195568895]
 mesh = SubResource("BoxMesh_4xowi")

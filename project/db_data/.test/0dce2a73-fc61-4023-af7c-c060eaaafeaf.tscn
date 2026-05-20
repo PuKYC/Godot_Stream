@@ -1,0 +1,13 @@
+[gd_scene format=3 uid="uid://sklmuvle8038"]
+
+[sub_resource type="PrismMesh" id="PrismMesh_ftby4"]
+left_to_right = -0.4
+size = Vector3(1.66, 1.6, 1.345)
+
+[node name="Node3D9" type="StreamObjectNode" unique_id=142379212]
+uuid = "0dce2a73-fc61-4023-af7c-c060eaaafeaf"
+aabb_sources = Array[NodePath]([NodePath("MeshInstance3D")])
+transform = Transform3D(0.60834545, 0.025796056, 0.79325306, -0.27162927, 0.94588184, 0.177553, -0.7457435, -0.3234843, 0.5824299, -6.9288216, 2.7194805, 22.34488)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=868277960]
+mesh = SubResource("PrismMesh_ftby4")
