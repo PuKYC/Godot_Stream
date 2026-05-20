@@ -27,10 +27,6 @@ jobs:
             target-type: template_debug
             float-precision: single
             dev-build: yes
-          - target: { platform: android, arch: x86_64, os: ubuntu-22.04 }
-            target-type: template_debug
-            float-precision: single
-            dev-build: yes
           - target: { platform: linux, arch: arm64, os: ubuntu-22.04-arm }
             target-type: template_debug
             float-precision: single
@@ -79,7 +75,7 @@ jobs:
           scons-cache: ${{ github.workspace }}/.scons-cache/
           cache-name: ${{ matrix.target.platform }}_${{ matrix.target.arch }}_${{ matrix.float-precision }}_${{ matrix.target-type }}
 
-      # ✅ 仅在 Windows 上：强制将所有 /Zi 替换为 /Z7
+      # 仅在 Windows 上：强制将所有 /Zi 替换为 /Z7
       - name: Force /Z7 debug format on Windows
         if: ${{ matrix.target.platform == 'windows' }}
         shell: bash

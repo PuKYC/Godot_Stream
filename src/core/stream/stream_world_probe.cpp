@@ -34,11 +34,7 @@ void StreamWorldProbe::_ready() {
 		connect("visibility_changed", Callable(this, "_on_visibility_changed"));
 	}
 
-	_connect_manager_signals();
-
-	if (is_visible_in_tree()) {
-		emit_signal("load_probe");
-	}
+	call_deferred("_connect_manager_signals");
 }
 
 void StreamWorldProbe::_enter_tree() {
@@ -75,10 +71,15 @@ void StreamWorldProbe::_connect_manager_signals() {
 	auto *manager_node = get_node<StreamManager>(stream_manager_path_);
 	if (!manager_node) {
 		UtilityFunctions::push_warning("StreamWorldProbe: StreamManager not found at path: ", stream_manager_path_);
+		return;
 	}
 	// 连接管理器回调
 	connect("load_probe", callable_mp(manager_node, &StreamManager::_on_load_probe), CONNECT_APPEND_SOURCE_OBJECT);
 	connect("unload_probe", callable_mp(manager_node, &StreamManager::_on_unload_probe), CONNECT_APPEND_SOURCE_OBJECT);
+
+	if (is_visible_in_tree()) {
+		emit_signal("load_probe");
+	}
 }
 
 // 属性实现
@@ -93,6 +94,9 @@ AABB StreamWorldProbe::get_aabb() const {
 
 void StreamWorldProbe::set_stream_manager_path(NodePath manager) {
 	stream_manager_path_ = manager;
+
+	if(is_node_ready())
+	_connect_manager_signals();
 }
 
 NodePath StreamWorldProbe::get_stream_manager_path() const {

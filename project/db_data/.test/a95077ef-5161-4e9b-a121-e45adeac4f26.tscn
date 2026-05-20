@@ -1,4 +1,4 @@
-[gd_scene format=3 uid="uid://drgs76ylvqdq5"]
+[gd_scene format=3 uid="uid://cvooaiv7t3xss"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_4xowi"]
 albedo_color = Color(0.1282793, 0.33706176, 0.3545081, 1)
@@ -7,10 +7,9 @@ albedo_color = Color(0.1282793, 0.33706176, 0.3545081, 1)
 material = SubResource("StandardMaterial3D_4xowi")
 size = Vector3(25, 0.03, 25)
 
-[node name="3" type="StreamObjectNode" unique_id=183445819]
-uuid = "b0d3ff69-3328-4b93-86a2-659f4ccde328"
+[node name="1" type="StreamObjectNode" unique_id=775159224]
+uuid = "a95077ef-5161-4e9b-a121-e45adeac4f26"
 aabb_sources = Array[NodePath]([NodePath("MeshInstance3D")])
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 55.477715)
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1195568895]
 mesh = SubResource("BoxMesh_4xowi")

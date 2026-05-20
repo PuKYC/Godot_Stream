@@ -1,18 +1,31 @@
 [gd_scene format=3 uid="uid://b8o8ydqhshnli"]
 
-[ext_resource type="PackedScene" uid="uid://bwltcuprdsghd" path="res://db_data/.test/b0d3ff69-3328-4b93-86a2-659f4ccde328.tscn" id="1_ig7tw"]
+[ext_resource type="PackedScene" uid="uid://cvooaiv7t3xss" path="res://db_data/.test/a95077ef-5161-4e9b-a121-e45adeac4f26.tscn" id="1_1bvp3"]
+[ext_resource type="Script" uid="uid://bsrtjjuklaxvx" path="res://stream_world_probe.gd" id="2_0xm2m"]
+[ext_resource type="PackedScene" uid="uid://cu2oop3qy0ked" path="res://db_data/.test/4ee869d3-f7c3-4c25-9464-c181f8b1dd75.tscn" id="2_lquwl"]
+[ext_resource type="PackedScene" uid="uid://dpsw1ge7va38m" path="res://db_data/.test/012cd386-9bd1-4f29-968d-bc74a5cd30f9.tscn" id="3_7mycd"]
 
 [node name="Node3D" type="Node3D" unique_id=1494622027]
 
 [node name="StreamManager" type="StreamManager" parent="." unique_id=335644912]
 database_path = "res://db_data/test.db"
 
-[node name="1" type="StreamObjectNode" parent="StreamManager" unique_id=183445819 instance=ExtResource("1_ig7tw")]
-uuid = "b0d3ff69-3328-4b93-86a2-659f4ccde328"
+[node name="1" type="StreamObjectNode" parent="StreamManager" unique_id=775159224 instance=ExtResource("1_1bvp3")]
+uuid = "a95077ef-5161-4e9b-a121-e45adeac4f26"
 aabb_sources = Array[NodePath]([NodePath("MeshInstance3D")])
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 55.477715)
+
+[node name="2" type="StreamObjectNode" parent="StreamManager" unique_id=1399388239 instance=ExtResource("2_lquwl")]
+uuid = "4ee869d3-f7c3-4c25-9464-c181f8b1dd75"
+aabb_sources = Array[NodePath]([NodePath("MeshInstance3D")])
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -31.220482, 0, 0)
+
+[node name="4" type="StreamObjectNode" parent="StreamManager" unique_id=418293894 instance=ExtResource("3_7mycd")]
+uuid = "012cd386-9bd1-4f29-968d-bc74a5cd30f9"
+aabb_sources = Array[NodePath]([NodePath("MeshInstance3D")])
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -66.10981)
 
 [node name="StreamWorldProbe" type="StreamWorldProbe" parent="." unique_id=739599123]
-aabb = AABB(0, 0, 0, 50, 50, 50)
+aabb = AABB(0, 0, 0, 75, 75, 75)
 stream_manager_path = NodePath("../StreamManager")
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 82.47438)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -69.37075)
+script = ExtResource("2_0xm2m")

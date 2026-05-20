@@ -319,10 +319,12 @@ void StreamManager::_on_object_exited(Node *node) {
 }
 
 void godot::StreamManager::_on_load_probe(StreamWorldProbe *probe) {
+	UtilityFunctions::print("[StreamManager] load_probe: ", probe->get_name());
 	registered_probes_.insert(probe->get_instance_id());
 }
 
 void godot::StreamManager::_on_unload_probe(StreamWorldProbe *probe) {
+	UtilityFunctions::print("[StreamManager] unload_probe: ", probe->get_name());
 	registered_probes_.erase(probe->get_instance_id());
 }
 
