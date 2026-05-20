@@ -7,14 +7,25 @@ jobs:
   profile:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'   # godot-cpp 通常作为子模块
 
       - name: Setup Godot
         uses: chickensoft-games/setup-godot@v2
         with:
-          version: 4.6.1 
+          version: 4.6.1       
           use-dotnet: false
           include-templates: false
+
+      # 编译 GDExtension --
+      - name: Build GDExtension
+        run: |
+          pip install scons
+          cd project
+          scons platform=linux target=template_debug -j$(nproc)
+          cd ..
 
       - name: Install perf & FlameGraph
         run: |
