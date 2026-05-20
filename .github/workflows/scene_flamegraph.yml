@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  profile:
+  Scene_Flamegraph:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo (with submodules)
