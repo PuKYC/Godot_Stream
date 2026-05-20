@@ -57,7 +57,7 @@ void StreamManager::_process(double delta) {
 
 		// 执行查询
 		query_process++;
-		if (query_process >= 5) {
+		if (query_process >= 4) {
 			std::vector<AABB> query_aabbs;
 			for (auto id : registered_probes_) {
 				StreamWorldProbe *probe = Object::cast_to<StreamWorldProbe>(ObjectDB::get_instance(id));
