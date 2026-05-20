@@ -391,7 +391,9 @@ void StreamManager::_on_query_result(const a_hashmap<uuids::uuid, ObjectData> &d
 
 	auto duration_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
 
-	UtilityFunctions::print("[StreamManager] query_result: ", duration_us.count(), " us");
+	UtilityFunctions::print("[StreamManager] query_result: ", 
+                        static_cast<int64_t>(duration_us.count()), 
+                        " us");
 }
 
 void StreamManager::_load_object_scene(const uuids::uuid &uuid) {
