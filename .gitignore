@@ -61,3 +61,6 @@ compile_commands.json
 # Cmake
 cmake-build*
 CMakeUserPresets.json
+
+project/db_data/test.db-shm
+project/db_data/test.db-wal

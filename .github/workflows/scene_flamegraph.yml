@@ -33,6 +33,8 @@ jobs:
 
       - name: Profile scene
         run: |
+          ls ./project/bin/linux
+
           godot --headless --path ./project main.tscn & GODOT_PID=$!
           sleep 10
           sudo perf record -F 99 -g -p $GODOT_PID -o perf.data -- sleep 25
