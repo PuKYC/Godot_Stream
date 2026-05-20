@@ -28,7 +28,6 @@ windows.x86_64.double.release = "./windows/StreamWorld.windows.template_release.
 
 linux.x86_64.single.debug = "./linux/libStreamWorld.linux.template_debug.x86_64.so"
 linux.x86_64.double.debug = "./linux/libStreamWorld.linux.template_debug.x86_64.double.so"
-linux.x86_64.single.editor = "./linux/libStreamWorld.linux.template_debug.x86_64.so" 
 linux.x86_64.single.release = "./linux/libStreamWorld.linux.template_release.x86_64.so"
 linux.x86_64.double.release = "./linux/libStreamWorld.linux.template_release.x86_64.double.so"
 
