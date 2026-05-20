@@ -338,8 +338,6 @@ void StreamManager::_on_object_aabb_changed(StreamObjectNode *node) {
 
 // 异步查询结果处理
 void StreamManager::_on_query_result(const a_hashmap<uuids::uuid, ObjectData> &db_objects) {
-	auto start = std::chrono::high_resolution_clock::now();
-
 	// 构建新数据集的 UUID 集合
 	a_hashset<uuids::uuid> new_set;
 	for (const auto &pair : db_objects) {
@@ -386,14 +384,6 @@ void StreamManager::_on_query_result(const a_hashmap<uuids::uuid, ObjectData> &d
 			load_queue_.push(pair.first);
 		}
 	}
-
-	auto end = std::chrono::high_resolution_clock::now();
-
-	auto duration_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-
-	UtilityFunctions::print("[StreamManager] query_result: ", 
-                        static_cast<int64_t>(duration_us.count()), 
-                        " us");
 }
 
 void StreamManager::_load_object_scene(const uuids::uuid &uuid) {
@@ -479,10 +469,14 @@ void StreamManager::_unload_object(const uuids::uuid &uuid) {
 void StreamManager::_save_object_to_file(const uuids::uuid &uuid, Node *node) {
 	UtilityFunctions::print("[StreamManager] save_object: ", uuids::to_string(uuid).c_str());
 
+	auto start = std::chrono::high_resolution_clock::now();
+
 	// 打包整个 node 树
 	Ref<PackedScene> scene;
 	scene.instantiate();
 	scene->pack(node);
+
+	auto end1 = std::chrono::high_resolution_clock::now();
 
 	String path = _object_scene_path(uuid);
 
@@ -491,6 +485,13 @@ void StreamManager::_save_object_to_file(const uuids::uuid &uuid, Node *node) {
 	if (err != OK) {
 		ERR_PRINT("Failed to save scene to " + path);
 	}
+
+	auto end = std::chrono::high_resolution_clock::now();
+
+	auto duration_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end1 - start);
+
+	UtilityFunctions::print("[StreamManager] save: ", static_cast<int64_t>(duration_us.count()), " us", static_cast<int64_t>(duration.count()), " us");
 }
 
 void StreamManager::_delete_object_scene(const uuids::uuid &uuid) {
