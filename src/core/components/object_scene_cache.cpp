@@ -9,7 +9,7 @@ ObjectSceneCache::ObjectSceneCache(size_t scene_cap, size_t node_cap) :
 	node_cache_capacity = node_cap;
 	scene_cache_capacity = scene_cap;
 	node_evict_ = [](Node *node) {
-		UtilityFunctions::print("[ObjectSceneCache] Evict node: " + node->get_name());
+		UtilityFunctions::print("[ObjectSceneCache] Evict node: ", node->get_name());
 		if (node)
 			node->queue_free();
 	};
@@ -79,7 +79,7 @@ bool ObjectSceneCache::request_scene(const uuids::uuid &uuid, const String &scen
 		return true;
 	}
 
-	print_error("[ObjectSceneCache] Failed to load scene, code: " + err);
+	print_error("[ObjectSceneCache] Failed to load scene, code: ", err);
 	return false;
 }
 

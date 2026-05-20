@@ -19,13 +19,11 @@ jobs:
           use-dotnet: false
           include-templates: false
 
-      # 编译 GDExtension --
+      # 编译 GDExtension
       - name: Build GDExtension
         run: |
           pip install scons
-          cd project
           scons platform=linux target=template_debug -j$(nproc)
-          cd ..
 
       - name: Install perf & FlameGraph
         run: |
