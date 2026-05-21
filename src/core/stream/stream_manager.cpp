@@ -9,6 +9,7 @@
 #include <godot_cpp/classes/packed_scene.hpp>
 #include <godot_cpp/classes/resource_loader.hpp>
 #include <godot_cpp/classes/resource_saver.hpp>
+#include <godot_cpp/classes/worker_thread_pool.hpp>
 #include <godot_cpp/core/object_id.hpp>
 #include <godot_cpp/variant/typed_array.hpp>
 #include <godot_cpp/variant/variant.hpp>
@@ -465,33 +466,26 @@ void StreamManager::_unload_object(const uuids::uuid &uuid) {
 		pending_removal_.erase(id);
 }
 
-// FIXME 可能会引起主线程卡顿
 void StreamManager::_save_object_to_file(const uuids::uuid &uuid, Node *node) {
 	UtilityFunctions::print("[StreamManager] save_object: ", uuids::to_string(uuid).c_str());
-
-	auto start = std::chrono::high_resolution_clock::now();
 
 	// 打包整个 node 树
 	Ref<PackedScene> scene;
 	scene.instantiate();
 	scene->pack(node);
 
-	auto end1 = std::chrono::high_resolution_clock::now();
-
 	String path = _object_scene_path(uuid);
 
+	// FIXME 涉及 i/o 可能会引起主线程卡顿
+	WorkerThreadPool::get_singleton()->add_task(callable_mp(this, &StreamManager::_async_save_object).bind(scene, path));
+}
+
+void godot::StreamManager::_async_save_object(const Ref<godot::PackedScene> scene, String path) {
 	Error err = ResourceSaver::get_singleton()->save(scene, path, ResourceSaver::FLAG_COMPRESS);
 
 	if (err != OK) {
 		ERR_PRINT("Failed to save scene to " + path);
 	}
-
-	auto end = std::chrono::high_resolution_clock::now();
-
-	auto duration_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end1 - start);
-
-	UtilityFunctions::print("[StreamManager] save: ", static_cast<int64_t>(duration_us.count()), " us", static_cast<int64_t>(duration.count()), " us");
 }
 
 void StreamManager::_delete_object_scene(const uuids::uuid &uuid) {
@@ -616,4 +610,6 @@ void StreamManager::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_object_aabb_changed"), &StreamManager::_on_object_aabb_changed);
 	ClassDB::bind_method(D_METHOD("_on_load_probe"), &StreamManager::_on_load_probe);
 	ClassDB::bind_method(D_METHOD("_on_unload_probe"), &StreamManager::_on_unload_probe);
+
+	ClassDB::bind_method(D_METHOD("_async_save_object"), &StreamManager::_async_save_object);
 }

@@ -100,6 +100,7 @@ private:
 	void _remove_object(const uuids::uuid &uuid);
 	void _unload_object(const uuids::uuid &uuid); // 卸载并缓存实例节点
 	void _save_object_to_file(const uuids::uuid &uuid, Node *node); // 序列化并保存场景文件
+	void _async_save_object(const Ref<godot::PackedScene> scene, String path);
 
 	void _load_object_scene(const uuids::uuid &uuid); // 加载一个对象到场景树（从缓存或磁盘）
 	void _delete_object_scene(const uuids::uuid &uuid); // 删除一个对象 (缓存以及磁盘)
