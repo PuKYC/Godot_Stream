@@ -1,0 +1,15 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "cppStandard": "c++20",
+            "includePath": [
+                "${default}",
+                "${workspaceFolder}/godot-cpp/gen/include",
+                "${workspaceFolder}/godot-cpp/include",
+                "${workspaceFolder}/src"
+            ]
+        }
+    ],
+    "version": 4
+}
