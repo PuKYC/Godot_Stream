@@ -35,7 +35,7 @@ It efficiently loads and unloads scene objects based on **AABB (Axis-Aligned Bou
 
 ## Requirements
 
-- Godot 4.x (built with GDExtension support)
+- Godot 4.6 (built with GDExtension support)
 - C++20 compatible compiler
 - [stduuid](https://github.com/mariusbancila/stduuid) (header‑only UUID library) MIT
 - [SQLite3](https://www.sqlite.org/) (amalgamation — bundled in `src/gdsqlite/sqlite/`)
@@ -50,23 +50,6 @@ It efficiently loads and unloads scene objects based on **AABB (Axis-Aligned Bou
 | `src/cpp_caches/` | Generic cache policy library (LRU / LFU / FIFO). |
 | `src/ankerl/` | `ankerl::unordered_dense` – high‑performance hashmap. |
 | `godot-cpp/` | Godot C++ bindings (git submodule). |
-
-## Build Profile
-
-The file `build_profile.json` controls which Godot classes are exposed to the extension at compile time. This reduces binary size by only generating bindings for classes your extension actually uses.
-
-```json
-{
-    "type": "feature_profile",
-    "enabled_classes": [
-        "Node3D",
-        "ImageTexture",
-        "OS"
-    ]
-}
-```
-
-Add or remove class names as needed, then rebuild. The SConstruct reads this profile and passes it to the binding generator.
 
 ## Building
 
@@ -151,22 +134,6 @@ func _ready():
 - AABB changes are batched and flushed to the database every frame.
 - Parent‑child hierarchy is respected: unloading a parent automatically unloads all descendants.
 
-### 6. Chunk system
-
-Every object's world AABB is mapped to a hierarchical chunk identifier:
-
-| Level | Chunk size | Typical use |
-|-------|-----------|-------------|
-| 0 | 1 unit | Fine details |
-| 1 | 2 units | Small props |
-| 2 | 4 units | Buildings |
-| ... | ... | ... |
-| 15 | 32,768 units | Region |
-| ... | ... | ... |
-| 31 | ~2.1 billion units | World‑scale |
-
-The chunk ID is stored in the database and used to quickly group objects for spatial queries. Higher levels provide coarser grouping with fewer database rows.
-
 ## API Overview
 
 ### StreamManager (Node3D)
@@ -238,4 +205,4 @@ Godot_Stream/
 
 ## License
 
-GPL‑3.0‑or‑later.
+MIT

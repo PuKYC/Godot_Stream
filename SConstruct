@@ -96,7 +96,7 @@ for opt in options:
     if env.get(opt.key, False):
         env.Append(CPPDEFINES=[opt.define])
 
-env.Append(CPPPATH=["src","src/gdsqlite"])
+env.Append(CPPPATH=["src", "src/gdsqlite"])
 
 # 强制启用 SQLite R*Tree 模块
 env.Append(CPPDEFINES=["SQLITE_ENABLE_RTREE"])
@@ -116,7 +116,7 @@ sources += Glob("src/core/stream/*.cpp")
 # 同时 CI SCons 缓存可能保留了旧的 arm64-only 对象，
 # 用独立的 env.Clone() + 显式 CCFLAGS 可让 SCons 识别为新签名，强制重编。
 _gdsqlite_cpp = Glob("src/gdsqlite/*.cpp") + Glob("src/gdsqlite/vfs/*.cpp")
-_gdsqlite_c   = Glob("src/gdsqlite/sqlite/*.c")
+_gdsqlite_c = Glob("src/gdsqlite/sqlite/*.c")
 
 if env["platform"] == "macos" and env.get("arch", "") == "universal":
     _gdsqlite_env = env.Clone()
@@ -149,6 +149,8 @@ library = env.SharedLibrary(
     source=sources,
 )
 
-copy = env.Install("{}/bin/{}/".format(projectdir, env["platform"]), library)
+copy = env.Install(
+    "{}/addons/wolrdstream/bin/{}/".format(projectdir, env["platform"]), library
+)
 
 Default(library, copy)
