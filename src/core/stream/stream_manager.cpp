@@ -1,5 +1,5 @@
 /* TODO
- * 在godot编辑器中暴露缓存配置 实现父子关系
+ * 在godot编辑器中暴露缓存配置 实现父子关系 再加入编辑器缓存
  */
 #include "stream_manager.h"
 
