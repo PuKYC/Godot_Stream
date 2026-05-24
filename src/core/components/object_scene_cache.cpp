@@ -38,7 +38,6 @@ Node *ObjectSceneCache::acquire(const uuids::uuid &uuid, const String &scene_pat
 	// 场景资源缓存命中
 	Ref<PackedScene> scene = get_scene(uuid);
 	if (scene.is_valid()) {
-		UtilityFunctions::print("[ObjectSceneCache] find scene cache: ", uuids::to_string(uuid).c_str());
 		return scene->instantiate(); // 同步实例化，开销很小
 	}
 

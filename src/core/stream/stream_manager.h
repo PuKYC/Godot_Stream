@@ -67,13 +67,13 @@ private:
 	// 缓存与加载
 	ObjectSceneCache cache_;
 	std::queue<uuids::uuid> load_queue_; // 待挂载的 UUID
-	std::queue<uuids::uuid> loaded_queue_;//  这帧已经加载过的UUID
+	std::queue<uuids::uuid> loaded_queue_; //  这帧已经加载过的UUID
 
 	a_hashmap<uuids::uuid, ObjectData> registry_; // 内存注册表：uuid → ObjectData（仅主线程访问）
 	a_hashmap<uuids::uuid, a_hashset<uuids::uuid>> children_map_; // 父子关系辅助：parent_uuid → set<child_uuid>
-	
+
 	// 处理删除(为了避免场景退出的时候对象没有删除标志位而导致的错误删除)
-	a_hashset<uuids::uuid> object_removal_;// 这帧收集到的
+	a_hashset<uuids::uuid> object_removal_; // 这帧收集到的
 	a_hashset<uuids::uuid> pending_removal_; // manager删除标志位
 
 	// 待同步脏数据（主线程收集）
@@ -101,6 +101,7 @@ private:
 	void _unload_object(const uuids::uuid &uuid); // 卸载并缓存实例节点
 	void _save_object_to_file(const uuids::uuid &uuid, Node *node); // 序列化并保存场景文件
 	void _async_save_object(const Ref<godot::PackedScene> scene, String path);
+	void _erase_registry_entry(const uuids::uuid &id);
 
 	void _load_object_scene(const uuids::uuid &uuid); // 加载一个对象到场景树（从缓存或磁盘）
 	void _delete_object_scene(const uuids::uuid &uuid); // 删除一个对象 (缓存以及磁盘)

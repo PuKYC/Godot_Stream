@@ -216,7 +216,7 @@ void StreamManager::_remove_object(const uuids::uuid &uuid) {
 
 		// 标记数据库删除（下帧批量同步）
 		to_remove_.insert(id);
-		to_upsert_uuids_.erase(id);
+		_erase_registry_entry(id);
 	}
 
 	// 清除这些节点的 children_map 条目（它们不可能再作为父节点存在）
@@ -378,7 +378,7 @@ void StreamManager::_on_query_result(const a_hashmap<uuids::uuid, ObjectData> &d
 	}
 	for (const auto &uuid : to_unload) {
 		_unload_object(uuid); // 会保存场景并缓存
-		registry_.erase(uuid);
+		_erase_registry_entry(uuid);
 	}
 
 	// 合并数据库最新数据到注册表（保留 node_root 等运行时状态）
@@ -479,7 +479,7 @@ void StreamManager::_unload_object(const uuids::uuid &uuid) {
 				remove_child(obj_node);
 				obj_node->set_owner(nullptr);
 				cache_.release(obj_id, obj_node);
-				registry_[obj_id].node_root = ObjectID();// 清空所有已卸载的 node_root
+				registry_[obj_id].node_root = ObjectID(); // 清空所有已卸载的 node_root
 			} else {
 				// DEBUG: 注册表中的 node_root 指向了无效对象
 				WARN_PRINT("Object node for UUID " + String(uuids::to_string(obj_id).c_str()) + " is no longer valid during unload.");
@@ -520,6 +520,12 @@ void godot::StreamManager::_async_save_object(const Ref<godot::PackedScene> scen
 	if (err != OK) {
 		ERR_PRINT("Failed to save scene to " + path);
 	}
+}
+
+void StreamManager::_erase_registry_entry(const uuids::uuid &id) {
+	registry_.erase(id);
+	dirty_aabb_.erase(id); // ← 新增
+	to_upsert_uuids_.erase(id); // 原有逻辑，移至此处统一管理
 }
 
 void StreamManager::_delete_object_scene(const uuids::uuid &uuid) {
