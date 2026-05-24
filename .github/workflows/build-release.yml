@@ -17,7 +17,7 @@ on:
 jobs:
   # 1. 调用已有的构建流程（会生成所有平台的 addons 产物）
   call-build:
-    uses: ./.github/workflows/build-release.yml
+    uses: ./.github/workflows/make_build.yml
 
   # 2. 下载构建产物并上传到 Release
   upload-release:
