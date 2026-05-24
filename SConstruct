@@ -110,13 +110,8 @@ sources += Glob("src/core/stream/*.cpp")
 # ===== gdsqlite 源文件 =====
 # macOS universal 构建时，对 gdsqlite 下所有文件（.cpp 和 .c）
 # 显式注入 -arch x86_64 -arch arm64。
-#
-# 根因：godot-cpp 对 universal 的 arch flag 处理方式未必覆盖用户源文件，
-# 导致 gdsqlite 里的 C++ 和 C 文件都只编译出 arm64 切片。
-# 同时 CI SCons 缓存可能保留了旧的 arm64-only 对象，
-# 用独立的 env.Clone() + 显式 CCFLAGS 可让 SCons 识别为新签名，强制重编。
 _gdsqlite_cpp = Glob("src/gdsqlite/*.cpp") + Glob("src/gdsqlite/vfs/*.cpp")
-_gdsqlite_c = Glob("src/gdsqlite/sqlite/*.c")
+_gdsqlite_c = Glob("src/gdsqlite/sqlite/sqlite3.c")
 
 if env["platform"] == "macos" and env.get("arch", "") == "universal":
     _gdsqlite_env = env.Clone()
