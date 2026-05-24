@@ -9,7 +9,6 @@ ObjectSceneCache::ObjectSceneCache(size_t scene_cap, size_t node_cap) :
 	node_cache_capacity = node_cap;
 	scene_cache_capacity = scene_cap;
 	node_evict_ = [](Node *node) {
-		UtilityFunctions::print("[ObjectSceneCache] Evict node: ", node->get_name());
 		if (node)
 			node->queue_free();
 	};
@@ -31,7 +30,6 @@ Node *ObjectSceneCache::acquire(const uuids::uuid &uuid, const String &scene_pat
 	// 节点缓存优先
 	auto result = node_cache_.TryGet(uuid); // 返回 std::pair<Node*, bool>
 	if (result.second) { // 如果找到了节点
-		UtilityFunctions::print("[ObjectSceneCache] find node cache: ", uuids::to_string(uuid).c_str());
 		return result.first; // 返回节点指针
 	}
 

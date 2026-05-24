@@ -2,6 +2,7 @@
  * 在godot编辑器中暴露缓存配置 实现父子关系 加入编辑器缓存 实现只读数据库
  */
 #include "stream_manager.h"
+#include "core/components/async_db_worker.h"
 
 #include <chrono>
 
@@ -58,9 +59,6 @@ void StreamManager::_process(double delta) {
 	if (db_worker_.is_valid()) {
 		// 批量数据库同步（含脏 AABB 处理）
 		_flush_pending_db_ops();
-
-		// 执行上一帧的任务回调
-		db_worker_->flush_callbacks();
 
 		// 执行查询
 		query_process++;
@@ -122,7 +120,7 @@ void StreamManager::_init_database(const String &path) {
 	}
 
 	// 创建异步数据库 worker（独立线程）
-	db_worker_ = Ref<AsyncDbWorker>(memnew(AsyncDbWorker(path)));
+	db_worker_ = AsyncDbWorker::make_db(path, false);
 	// DEBUG: worker 创建后应确保有效
 	DEV_ASSERT(db_worker_.is_valid());
 
@@ -153,7 +151,7 @@ void StreamManager::_query_aabb(const AABB &aabb) {
 							   *result_ptr = db.query_objects(aabb);
 						   },
 			[this, result_ptr]() {
-				_on_query_result(*result_ptr);
+				this->_on_query_result(*result_ptr);
 			} });
 }
 
@@ -275,7 +273,7 @@ void godot::StreamManager::_query_aabb(std::vector<AABB> &aabbs) {
 							   *result_ptr = db.query_objects(aabbs);
 						   },
 			[this, result_ptr]() {
-				_on_query_result(*result_ptr);
+				this->_on_query_result(*result_ptr);
 			} });
 }
 
@@ -507,7 +505,7 @@ void StreamManager::_save_object_to_file(const uuids::uuid &uuid, Node *node) {
 	String path = _object_scene_path(uuid);
 	ERR_FAIL_COND_MSG(path.is_empty(), "Cannot save object, derived path is empty for UUID: " + String(uuids::to_string(uuid).c_str()));
 
-	// FIXME 涉及 i/o 可能会引起主线程卡顿
+	// 涉及 i/o 可能会引起主线程卡顿
 	WorkerThreadPool::get_singleton()->add_task(callable_mp(this, &StreamManager::_async_save_object).bind(scene, path));
 }
 
