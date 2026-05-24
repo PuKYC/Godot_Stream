@@ -64,10 +64,18 @@ void StreamManager::_process(double delta) {
 			std::vector<AABB> query_aabbs;
 			for (auto id : registered_probes_) {
 				StreamWorldProbe *probe = Object::cast_to<StreamWorldProbe>(ObjectDB::get_instance(id));
-				query_aabbs.push_back(probe->get_global_aabb());
+				if (probe) {
+					query_aabbs.push_back(probe->get_global_aabb());
+				} else {
+					// DEBUG: 探针已被销毁但未从注册表中移除，属于逻辑错误
+					WARN_PRINT("StreamWorldProbe instance no longer valid, removing from registered_probes_.");
+					registered_probes_.erase(id);
+				}
 			}
 
-			_query_aabb(query_aabbs);
+			if (!query_aabbs.empty()) {
+				_query_aabb(query_aabbs);
+			}
 
 			query_process = 0;
 		}
@@ -96,6 +104,9 @@ void StreamManager::_process(double delta) {
 
 // 数据库初始化
 void StreamManager::_init_database(const String &path) {
+	// DEBUG: 数据库路径不能为空
+	ERR_FAIL_COND_MSG(path.is_empty(), "Cannot initialize database with an empty path.");
+
 	object_scene_dir_ = _derive_object_dir(path);
 
 	// 确保目录存在
@@ -103,11 +114,15 @@ void StreamManager::_init_database(const String &path) {
 		Error err = DirAccess::make_dir_absolute(object_scene_dir_);
 		if (err != OK) {
 			ERR_PRINT("Failed to create object scene directory: " + object_scene_dir_);
+			return; // 目录创建失败则无法继续
 		}
 	}
 
 	// 创建异步数据库 worker（独立线程）
 	db_worker_ = Ref<AsyncDbWorker>(memnew(AsyncDbWorker(path)));
+	// DEBUG: worker 创建后应确保有效
+	DEV_ASSERT(db_worker_.is_valid());
+
 	db_worker_->push_task({
 			[](StreamSqliteDB &db) {
 				// 可选：执行启动时的数据库维护或读取版本信息
@@ -146,14 +161,12 @@ void StreamManager::_query_aabb(const AABB &aabb) {
 
 //  对象管理（由信号触发 不一定）
 void StreamManager::add_object(StreamObjectNode *node) {
-	if (!node)
-		return;
+	// DEBUG: node 必须非空
+	ERR_FAIL_COND_MSG(!node, "add_object called with a null node.");
+
 	uuids::uuid uuid = node->get_uuid();
-	if (uuid.is_nil()) {
-		// 理论上不应发生
-		WARN_PRINT("StreamObjectNode without valid UUID cannot be added.");
-		return;
-	}
+	// DEBUG: UUID 必须有效
+	ERR_FAIL_COND_MSG(uuid.is_nil(), "StreamObjectNode without a valid UUID cannot be added.");
 
 	// 设置父 UUID（从节点读取，已经是序列化的结果）
 	ObjectData data;
@@ -173,11 +186,16 @@ void StreamManager::add_object(StreamObjectNode *node) {
 }
 
 void godot::StreamManager::remove_object(const uuids::uuid &uuid) {
+	// DEBUG: 不能移除无效的 UUID
+	ERR_FAIL_COND_MSG(uuid.is_nil(), "Attempting to remove object with nil UUID.");
 	object_removal_.insert(uuid);
 }
 
 // 对象移除但节点需手动删除
 void StreamManager::_remove_object(const uuids::uuid &uuid) {
+	// DEBUG: 内部调用，确保 UUID 存在于注册表
+	DEV_ASSERT(registry_.count(uuid) > 0);
+
 	// 收集所有要删除的 UUID（自身 + 全部子孙）
 	a_hashset<uuids::uuid> to_delete = _collect_descendants(uuid);
 
@@ -209,9 +227,12 @@ void StreamManager::_remove_object(const uuids::uuid &uuid) {
 }
 
 void StreamManager::update_object(StreamObjectNode *node) {
+	// DEBUG: node 不能为空
+	ERR_FAIL_COND(!node);
+
 	uuids::uuid uuid = node->get_uuid();
-	if (!registry_.count(uuid))
-		return;
+	// DEBUG: uuid 必须已在注册表中
+	ERR_FAIL_COND_MSG(!registry_.count(uuid), "update_object called for an unregistered UUID.");
 
 	// 更新 AABB 和 node_root（以防节点重新创建）
 	registry_[uuid].node_root = node->get_instance_id();
@@ -248,6 +269,8 @@ a_hashset<uuids::uuid> StreamManager::_collect_descendants(const uuids::uuid &ro
 }
 
 void godot::StreamManager::_query_aabb(std::vector<AABB> &aabbs) {
+	// DEBUG: 查询列表不应为空
+	DEV_ASSERT(!aabbs.empty());
 	auto result_ptr = std::make_shared<a_hashmap<uuids::uuid, ObjectData>>();
 	db_worker_->push_task({ [aabbs, result_ptr](StreamSqliteDB &db) {
 							   // 将查询结果赋值给 shared_ptr 指向的 map
@@ -266,6 +289,8 @@ uuids::uuid godot::StreamManager::_generate_uuid() {
 }
 
 void StreamManager::_connect_node_signals(StreamObjectNode *node) {
+	// DEBUG: 节点必须有效
+	ERR_FAIL_COND(!node);
 	if (!node->is_connected("object_aabb_changed", callable_mp(this, &StreamManager::_on_object_aabb_changed)))
 		node->connect("object_aabb_changed", callable_mp(this, &StreamManager::_on_object_aabb_changed), CONNECT_APPEND_SOURCE_OBJECT);
 }
@@ -278,10 +303,13 @@ String StreamManager::_derive_object_dir(const String &db_path) const {
 
 // 内部槽：节点进入树
 void StreamManager::_on_object_entered(Node *node) {
+	// DEBUG: node 不能为空
+	ERR_FAIL_COND(!node);
+
 	// 过滤节点
 	auto obj = Object::cast_to<StreamObjectNode>(node);
 	if (!obj)
-		return;
+		return; // 非目标类型，静默忽略
 
 	uuids::uuid uuid = obj->get_uuid();
 	if (uuid.is_nil()) {
@@ -298,6 +326,8 @@ void StreamManager::_on_object_entered(Node *node) {
 
 // 槽函数
 void StreamManager::_on_object_exited(Node *node) {
+	ERR_FAIL_COND(!node);
+
 	auto obj = Object::cast_to<StreamObjectNode>(node);
 	if (!obj)
 		return;
@@ -313,17 +343,23 @@ void StreamManager::_on_object_exited(Node *node) {
 }
 
 void godot::StreamManager::_on_load_probe(StreamWorldProbe *probe){
-registered_probes_.insert(probe->get_instance_id());
+	ERR_FAIL_COND(!probe);
+	registered_probes_.insert(probe->get_instance_id());
 }
 
 void godot::StreamManager::_on_unload_probe(StreamWorldProbe *probe) {
+	ERR_FAIL_COND(!probe);
 	registered_probes_.erase(probe->get_instance_id());
 }
 
 void StreamManager::_on_object_aabb_changed(StreamObjectNode *node) {
+	ERR_FAIL_COND(!node);
 	uuids::uuid uuid = node->get_uuid();
 	if (registry_.count(uuid)) {
 		dirty_aabb_.insert(uuid); // 延迟至 _process 更新
+	} else {
+		// DEBUG: 收到未注册节点的信号，可能是逻辑错误
+		WARN_PRINT("Received AABB changed signal for unregistered node: " + String(uuids::to_string(uuid).c_str()));
 	}
 }
 
@@ -378,13 +414,21 @@ void StreamManager::_on_query_result(const a_hashmap<uuids::uuid, ObjectData> &d
 }
 
 void StreamManager::_load_object_scene(const uuids::uuid &uuid) {
-	if (!registry_.count(uuid))
+	// DEBUG: 加载前确保 UUID 有效且已注册
+	ERR_FAIL_COND(uuid.is_nil());
+	if (!registry_.count(uuid)) {
+		WARN_PRINT("_load_object_scene called for unknown UUID: " + String(uuids::to_string(uuid).c_str()));
 		return;
+	}
+
 	ObjectData &data = registry_[uuid];
 	if (data.node_root.is_valid())
-		return;
+		return; // 已加载
 
 	String scene_path = _object_scene_path(uuid);
+	// DEBUG: 路径必须非空
+	ERR_FAIL_COND_MSG(scene_path.is_empty(), "Scene path is empty for UUID: " + String(uuids::to_string(uuid).c_str()));
+
 	Node *node = cache_.acquire(uuid, scene_path);
 
 	if (!node) {
@@ -398,7 +442,8 @@ void StreamManager::_load_object_scene(const uuids::uuid &uuid) {
 	// 成功获取实例
 	StreamObjectNode *stream_node = Object::cast_to<StreamObjectNode>(node);
 	if (!stream_node) {
-		// 不是期望的节点类型，清理
+		// DEBUG: 获取到的节点不是预期类型，属于严重错误
+		ERR_PRINT("Loaded scene is not a StreamObjectNode: " + scene_path);
 		memdelete(node);
 		return;
 	}
@@ -412,8 +457,12 @@ void StreamManager::_load_object_scene(const uuids::uuid &uuid) {
 }
 
 void StreamManager::_unload_object(const uuids::uuid &uuid) {
-	if (!registry_.count(uuid))
+	// DEBUG: UUID 必须有效且已注册
+	ERR_FAIL_COND(uuid.is_nil());
+	if (!registry_.count(uuid)) {
+		WARN_PRINT("_unload_object called for unknown UUID: " + String(uuids::to_string(uuid).c_str()));
 		return;
+	}
 
 	// 收集所有子孙 UUID（包括自身），统一插入 pending_removal_
 	a_hashset<uuids::uuid> all_ids = _collect_descendants(uuid);
@@ -439,6 +488,9 @@ void StreamManager::_unload_object(const uuids::uuid &uuid) {
 			remove_child(obj_node);
 			obj_node->set_owner(nullptr);
 			cache_.release(uuid, obj_node);
+		} else {
+			// DEBUG: 注册表中的 node_root 指向了无效对象
+			WARN_PRINT("Object node for UUID " + String(uuids::to_string(uuid).c_str()) + " is no longer valid during unload.");
 		}
 	}
 
@@ -454,19 +506,28 @@ void StreamManager::_unload_object(const uuids::uuid &uuid) {
 }
 
 void StreamManager::_save_object_to_file(const uuids::uuid &uuid, Node *node) {
+	// DEBUG: 节点不能为空
+	ERR_FAIL_COND(!node);
 
 	// 打包整个 node 树
 	Ref<PackedScene> scene;
 	scene.instantiate();
+	// DEBUG: PackedScene 实例化必须成功
+	ERR_FAIL_COND(!scene.is_valid());
+
 	scene->pack(node);
 
 	String path = _object_scene_path(uuid);
+	ERR_FAIL_COND_MSG(path.is_empty(), "Cannot save object, derived path is empty for UUID: " + String(uuids::to_string(uuid).c_str()));
 
 	// FIXME 涉及 i/o 可能会引起主线程卡顿
 	WorkerThreadPool::get_singleton()->add_task(callable_mp(this, &StreamManager::_async_save_object).bind(scene, path));
 }
 
 void godot::StreamManager::_async_save_object(const Ref<godot::PackedScene> scene, String path) {
+	// DEBUG: 场景资源必须有效
+	ERR_FAIL_COND_MSG(!scene.is_valid(), "Cannot save invalid PackedScene to " + path);
+
 	Error err = ResourceSaver::get_singleton()->save(scene, path, ResourceSaver::FLAG_COMPRESS);
 
 	if (err != OK) {
@@ -499,6 +560,9 @@ void StreamManager::_flush_pending_db_ops() {
 		auto it = registry_.find(uuid);
 		if (it != registry_.end())
 			upsert_data->emplace_back(uuid, it->second);
+		else
+			// DEBUG: 标记为 upsert 的 UUID 在注册表中不存在，数据不一致
+			WARN_PRINT("UUID in to_upsert_uuids_ not found in registry: " + String(uuids::to_string(uuid).c_str()));
 	}
 	to_upsert_uuids_.clear();
 
@@ -510,14 +574,19 @@ void StreamManager::_flush_pending_db_ops() {
 	auto dirty_data = std::make_shared<a_hashmap<uuids::uuid, godot::AABB>>();
 	for (const auto &uuid : dirty_aabb_) {
 		auto it = registry_.find(uuid);
-		if (it == registry_.end())
+		if (it == registry_.end()) {
+			WARN_PRINT("Dirty AABB UUID not found in registry: " + String(uuids::to_string(uuid).c_str()));
 			continue;
+		}
 		const ObjectID &node_id = it->second.node_root;
 		if (node_id.is_valid()) {
 			StreamObjectNode *node = Object::cast_to<StreamObjectNode>(
 					ObjectDB::get_instance(node_id));
 			if (node && node->is_inside_tree())
 				(*dirty_data)[uuid] = node->get_aabb();
+			else
+				// DEBUG: 节点无效或不在树中，无法获取 AABB
+				WARN_PRINT("Cannot retrieve AABB for UUID " + String(uuids::to_string(uuid).c_str()) + ": node invalid or not in tree.");
 		}
 	}
 	dirty_aabb_.clear();
