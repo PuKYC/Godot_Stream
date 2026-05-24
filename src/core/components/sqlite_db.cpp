@@ -11,7 +11,8 @@
 #include <godot_cpp/classes/project_settings.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 
-SQLiteDB::SQLiteDB(const std::string &db_path, bool read_only) : db_(nullptr) {
+SQLiteDB::SQLiteDB(const std::string &db_path, bool read_only) :
+		db_(nullptr) {
 	int flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE;
 
 	int rc = -1;
@@ -33,6 +34,8 @@ SQLiteDB::SQLiteDB(const std::string &db_path, bool read_only) : db_(nullptr) {
 		}
 		return;
 	}
+
+	sqlite3_busy_timeout(db_, 5000); // 等待最多 5 秒
 
 	exec("PRAGMA journal_mode=WAL;");
 	exec("PRAGMA synchronous=NORMAL;");
@@ -92,7 +95,8 @@ const void SQLiteDB::exec(const std::string &sql) {
 	}
 }
 
-SQLiteDB::Stmt::Stmt(SQLiteDB &db_obj, const std::string &sql) : db_(db_obj.db_), stmt_(nullptr) {
+SQLiteDB::Stmt::Stmt(SQLiteDB &db_obj, const std::string &sql) :
+		db_(db_obj.db_), stmt_(nullptr) {
 	if (!db_) {
 		return;
 	}

@@ -25,7 +25,6 @@ public:
 	ObjectData query_object(const uuids::uuid uuid);
 
 	void upsert_object_uuids(const uuids::uuid uuid, const ObjectData &object);
-
 	void remove_object(const uuids::uuid uuid);
 
 	// 设置 / 获取对象的 AABB（带 LRU 缓存）
@@ -34,13 +33,14 @@ public:
 
 	// 设置chunk
 	void set_object_chunk(const uuids::uuid &uuid, int chunk_id);
-
 	// 按 parent_uuid 查询所有子对象的 uuid 和 AABB
 	std::vector<std::pair<uuids::uuid, godot::AABB>> query_children_aabb(const uuids::uuid &parent_uuid);
 
 	SQLiteDB db;
 
 private:
+const bool read_only;
+
 	lru_cache_t<Chunk, int> chunk_cache;
 	lru_cache_t<uuids::uuid, godot::AABB> aabb_cache;
 

@@ -1,10 +1,13 @@
 #include "stream_sqlite_db.h"
+#include "godot_cpp/core/print_string.hpp"
 
 using namespace godot;
 
-StreamSqliteDB::StreamSqliteDB(const std::string &path, bool read_only) : db(path, read_only),
-																		  chunk_cache(500, caches::LRUCachePolicy<Chunk>{}),
-																		  aabb_cache(1000, caches::LRUCachePolicy<uuids::uuid>{}) {
+StreamSqliteDB::StreamSqliteDB(const std::string &path, bool read_only) :
+		read_only(read_only),
+		db(path, read_only),
+		chunk_cache(500, caches::LRUCachePolicy<Chunk>{}),
+		aabb_cache(1000, caches::LRUCachePolicy<uuids::uuid>{}) {
 	if (!is_database()) {
 		clear_and_create_table();
 		update_info("1");
@@ -117,7 +120,7 @@ void StreamSqliteDB::clear_and_create_table() {
     )");
 
 	db.exec(R"(
-        CREATE TRIGGER after_delete_chunk_metadata 
+        CREATE TRIGGER after_delete_chunk_metadata
         AFTER DELETE ON chunk_metadata
         BEGIN
             DELETE FROM chunk_rtree WHERE id = OLD.id;
@@ -250,12 +253,14 @@ a_hashmap<uuids::uuid, ObjectData> StreamSqliteDB::query_objects(const AABB aabb
 }
 
 void StreamSqliteDB::upsert_object_uuids(const uuids::uuid uuid, const ObjectData &objectdata) {
+	if(read_only)print_error("db was read-only. don't upsert uuid");
+
 	sql_upsert_object_uuids.bind_blob(1, &uuid, sizeof(uuids::uuid));
 
 	if (objectdata.parent_uuid == uuids::uuid()) {
-		sql_upsert_object_uuids.bind_null(3);
+		sql_upsert_object_uuids.bind_null(2);
 	} else {
-		sql_upsert_object_uuids.bind_blob(3, &objectdata.parent_uuid, sizeof(uuids::uuid));
+		sql_upsert_object_uuids.bind_blob(2, &objectdata.parent_uuid, sizeof(uuids::uuid));
 	}
 
 	sql_upsert_object_uuids.step();
@@ -268,21 +273,23 @@ int StreamSqliteDB::query_chunk(const Chunk chunk) {
 		return result.first;
 	}
 
-	bind_chunk(sql_upsert_chunk, chunk);
-
 	int id = -1;
-	if (sql_upsert_chunk.step()) {
-		id = sql_upsert_chunk.get_int(0); // 新插入，RETURNING 返回 id
-	} else {
-		// 已存在，查询 id
-		bind_chunk(sql_query_chunk, chunk);
-		if (sql_query_chunk.step()) {
-			id = sql_query_chunk.get_int(0);
-		}
-		stmt_finish(sql_query_chunk);
-	}
 
-	stmt_finish(sql_upsert_chunk);
+	bind_chunk(sql_query_chunk, chunk);
+	if (sql_query_chunk.step()) {
+		id = sql_query_chunk.get_int(0);
+	} else if (!read_only) {
+		bind_chunk(sql_upsert_chunk, chunk);
+
+		if (sql_upsert_chunk.step()) {
+			id = sql_upsert_chunk.get_int(0); // 新插入，RETURNING 返回 id
+		}
+
+		stmt_finish(sql_upsert_chunk);
+	} else {
+		ERR_PRINT("db was read-only");
+	}
+	stmt_finish(sql_query_chunk);
 
 	chunk_cache.Put(chunk, id);
 	return id;
@@ -309,6 +316,8 @@ ObjectData StreamSqliteDB::query_object(const uuids::uuid uuid) {
 }
 
 void StreamSqliteDB::remove_object(const uuids::uuid uuid) {
+	if(read_only)print_error("db was read-only. don't remove object");
+
 	sql_remove_object.bind_blob(1, &uuid, sizeof(uuids::uuid));
 	sql_remove_object.step();
 	stmt_finish(sql_remove_object);
@@ -318,6 +327,8 @@ void StreamSqliteDB::remove_object(const uuids::uuid uuid) {
 }
 
 void StreamSqliteDB::set_object_aabb(const uuids::uuid &uuid, const godot::AABB &aabb) {
+if(read_only)print_error("db was read-only. don't set aabb");
+
 	// 更新数据库
 	bind_aabb(sql_set_object_aabb, aabb, 1);
 	sql_set_object_aabb.bind_blob(7, &uuid, sizeof(uuids::uuid));
@@ -330,13 +341,13 @@ void StreamSqliteDB::set_object_aabb(const uuids::uuid &uuid, const godot::AABB 
 }
 
 godot::AABB StreamSqliteDB::get_object_aabb(const uuids::uuid &uuid) {
-	// 1. 尝试从缓存获取
+	// 尝试从缓存获取
 	auto cache_result = aabb_cache.TryGet(uuid);
 	if (cache_result.second) {
 		return cache_result.first;
 	}
 
-	// 2. 查询数据库
+	// 查询数据库
 	sql_get_object_aabb.bind_blob(1, &uuid, sizeof(uuids::uuid));
 	godot::AABB aabb;
 	bool found = false;
@@ -351,13 +362,15 @@ godot::AABB StreamSqliteDB::get_object_aabb(const uuids::uuid &uuid) {
 
 	stmt_finish(sql_get_object_aabb);
 
-	// 3. 无论是否有效，都存入缓存（默认 AABB 也缓存，避免重复 DB 查询）
+	// 无论是否有效，都存入缓存（默认 AABB 也缓存，避免重复 DB 查询）
 	aabb_cache.Put(uuid, aabb);
 
 	return aabb;
 }
 
 void StreamSqliteDB::set_object_chunk(const uuids::uuid &uuid, int chunk_id) {
+if(read_only)print_error("db was read-only. don't set chunk");
+
 	sql_set_object_chunk.bind_blob(1, &uuid, sizeof(uuids::uuid));
 	sql_set_object_chunk.bind_int(2, chunk_id);
 	sql_set_object_chunk.step();

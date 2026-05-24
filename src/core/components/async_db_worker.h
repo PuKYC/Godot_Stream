@@ -23,7 +23,7 @@ public:
 	};
 
 	AsyncDbWorker() = default;
-	AsyncDbWorker(const godot::String &db_path);
+	AsyncDbWorker(const godot::String &db_path, bool read_only = false);
 	~AsyncDbWorker();
 
 	// 主线程调用，投递任务

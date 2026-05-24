@@ -2,8 +2,8 @@
 
 using namespace godot;
 
-AsyncDbWorker::AsyncDbWorker(const String &db_path) {
-	db_ = std::make_unique<StreamSqliteDB>(db_path.utf8().get_data(), false);
+AsyncDbWorker::AsyncDbWorker(const String &db_path, bool read_only) {
+	db_ = std::make_unique<StreamSqliteDB>(db_path.utf8().get_data(), read_only);
 	worker_ = std::thread(&AsyncDbWorker::thread_loop, this);
 }
 
