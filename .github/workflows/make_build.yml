@@ -83,13 +83,19 @@ jobs:
         run: |
           Remove-Item bin/* -Include *.exp,*.lib,*.pdb -Force
 
-      # Upload the build
+      # 创建临时结构，确保 artifact 中包含 addons 文件夹
+      - name: Prepare addons structure
+        shell: sh
+        run: |
+          mkdir -p upload/addons
+          cp -r ${{ github.workspace }}/project/addons/* upload/addons/
+
+      # Upload the build（路径改为 upload/，里面只包含 addons/）
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: godot-cpp-template-${{ matrix.target.platform }}-${{ matrix.target.arch }}-${{ matrix.float-precision }}-${{ matrix.target-type }}
-          path: |
-            ${{ github.workspace }}/project/addons
+          path: upload/
 
   # Merges all the build artifacts together into a single godot-cpp-template artifact.
   # If you comment out this step, all the builds will be uploaded individually.
