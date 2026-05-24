@@ -1,3 +1,6 @@
+/* TODO
+ * 在godot编辑器中暴露缓存配置 实现父子关系
+ */
 #include "stream_manager.h"
 
 #include <chrono>
@@ -17,7 +20,8 @@
 using namespace godot;
 
 // 构造 析构
-StreamManager::StreamManager() : cache_(16, 32) {
+StreamManager::StreamManager() :
+		cache_(16, 32) {
 	// 缓存容量可后续调整为可配置属性
 
 	// 连接自身回调
@@ -88,7 +92,6 @@ void StreamManager::_process(double delta) {
 	const int MAX_LOADS_PER_FRAME = 4;
 	int loads = 0;
 	while (!load_queue_.empty() && loads < MAX_LOADS_PER_FRAME) {
-
 		uuids::uuid uuid = load_queue_.front();
 		load_queue_.pop();
 		_load_object_scene(uuid);
@@ -129,11 +132,6 @@ void StreamManager::_init_database(const String &path) {
 			},
 			[]() {} // 无需回调
 	});
-
-	/* TODO 从数据库加载已持久化对象列表（同步，因为刚启动，轻量操作）
-	可通过 db_worker_ 提交同步任务或直接在构造函数中读取
-	此处略，实际可在 worker 创建后提交一个查询任务，在回调中填充 registry_
-	*/
 }
 
 // 公开接口
@@ -154,9 +152,9 @@ void StreamManager::_query_aabb(const AABB &aabb) {
 							   // 将查询结果赋值给 shared_ptr 指向的 map
 							   *result_ptr = db.query_objects(aabb);
 						   },
-							[this, result_ptr]() {
-								_on_query_result(*result_ptr);
-							} });
+			[this, result_ptr]() {
+				_on_query_result(*result_ptr);
+			} });
 }
 
 //  对象管理（由信号触发 不一定）
@@ -276,9 +274,9 @@ void godot::StreamManager::_query_aabb(std::vector<AABB> &aabbs) {
 							   // 将查询结果赋值给 shared_ptr 指向的 map
 							   *result_ptr = db.query_objects(aabbs);
 						   },
-							[this, result_ptr]() {
-								_on_query_result(*result_ptr);
-							} });
+			[this, result_ptr]() {
+				_on_query_result(*result_ptr);
+			} });
 }
 
 uuids::uuid godot::StreamManager::_generate_uuid() {
@@ -342,7 +340,7 @@ void StreamManager::_on_object_exited(Node *node) {
 	remove_object(uuid);
 }
 
-void godot::StreamManager::_on_load_probe(StreamWorldProbe *probe){
+void godot::StreamManager::_on_load_probe(StreamWorldProbe *probe) {
 	ERR_FAIL_COND(!probe);
 	registered_probes_.insert(probe->get_instance_id());
 }
@@ -470,34 +468,23 @@ void StreamManager::_unload_object(const uuids::uuid &uuid) {
 		pending_removal_.insert(id);
 	}
 
-	// TODO 使用递归可能导致栈溢出
-	// 递归卸载子对象（深度优先，保存并缓存子节点）
-	if (children_map_.count(uuid)) {
-		auto children = children_map_[uuid]; // 拷贝，避免迭代中修改
-		for (const auto &child : children)
-			_unload_object(child);
-	}
-
-	// 处理自身节点
-	ObjectData &data = registry_[uuid];
-	if (data.node_root.is_valid()) {
-		StreamObjectNode *obj_node = Object::cast_to<StreamObjectNode>(
-				ObjectDB::get_instance(data.node_root));
-		if (obj_node) {
-			_save_object_to_file(uuid, obj_node);
-			remove_child(obj_node);
-			obj_node->set_owner(nullptr);
-			cache_.release(uuid, obj_node);
-		} else {
-			// DEBUG: 注册表中的 node_root 指向了无效对象
-			WARN_PRINT("Object node for UUID " + String(uuids::to_string(uuid).c_str()) + " is no longer valid during unload.");
+	for (auto obj_id : all_ids) {
+		// 处理自身节点
+		ObjectData &data = registry_[obj_id];
+		if (data.node_root.is_valid()) {
+			StreamObjectNode *obj_node = Object::cast_to<StreamObjectNode>(
+					ObjectDB::get_instance(data.node_root));
+			if (obj_node) {
+				_save_object_to_file(obj_id, obj_node);
+				remove_child(obj_node);
+				obj_node->set_owner(nullptr);
+				cache_.release(obj_id, obj_node);
+				registry_[obj_id].node_root = ObjectID();// 清空所有已卸载的 node_root
+			} else {
+				// DEBUG: 注册表中的 node_root 指向了无效对象
+				WARN_PRINT("Object node for UUID " + String(uuids::to_string(obj_id).c_str()) + " is no longer valid during unload.");
+			}
 		}
-	}
-
-	// 清空所有已卸载的 node_root（统一操作，避免遗漏）
-	for (const auto &id : all_ids) {
-		if (registry_.count(id))
-			registry_[id].node_root = ObjectID();
 	}
 
 	// 移除 pending 标记
@@ -649,8 +636,8 @@ void StreamManager::_flush_pending_db_ops() {
 							   }
 							   db.db.exec("COMMIT;");
 						   },
-							[]() {
-							} });
+			[]() {
+			} });
 }
 
 // 属性绑定
