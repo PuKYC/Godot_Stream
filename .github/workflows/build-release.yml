@@ -1,6 +1,7 @@
 name: Release GDExtension Addons
 
 on:
+  workflow_dispatch:
   release:
     types: [published]
 
