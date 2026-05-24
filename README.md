@@ -40,7 +40,7 @@ It efficiently loads and unloads scene objects based on **AABB (Axis-Aligned Bou
 - [stduuid](https://github.com/mariusbancila/stduuid) (header‑only UUID library) MIT
 - [SQLite3](https://www.sqlite.org/) (amalgamation — bundled in `src/gdsqlite/sqlite/`)
 - [ankerl::unordered_dense](https://github.com/martinus/unordered_dense) (A fast & densely stored hashmap) MIT
-- `godot-cpp` (same version as your Godot 4.x build)
+- `godot-cpp`
 
 ### Built‑in dependencies (in‑tree)
 
@@ -114,19 +114,6 @@ probe.stream_manager_path = NodePath("/root/Main/StreamManager")
 camera.add_child(probe)
 ```
 
-#### Manual mode – query_aabb
-
-Call `query_aabb()` directly from GDScript:
-
-```gdscript
-extends Node3D
-
-func _ready():
-    var stream_mgr = get_node("/root/Main/StreamManager")
-    # Request objects inside a 100x100x100 box around origin
-    stream_mgr.query_aabb(AABB(Vector3(0, 0, 0), Vector3(100, 100, 100)))
-```
-
 ### 5. Automatic object lifecycle
 
 - When a `StreamObjectNode` enters the scene tree, it reports its UUID to the manager. If no UUID is assigned yet, the manager generates one automatically.
@@ -142,7 +129,6 @@ func _ready():
 |-------------------|-------------|
 | `set_database_path(path: String)` | Set the SQLite database file path. |
 | `get_database_path() -> String` | Returns the current database path. |
-| `query_aabb(aabb: AABB)` | Initiate an asynchronous AABB query. Results are used to load/unload objects. |
 | `add_object(node: StreamObjectNode)` | Register a streamable object. |
 | `remove_object(uuid: String)` | Unload and remove an object and all its descendants. |
 | `update_object(node: StreamObjectNode)` | Update an object's metadata (AABB, parent). |
@@ -153,8 +139,8 @@ func _ready():
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `uuid` | String (read‑only) | String representation of the object's UUID. Set internally. |
-| `parent_uuid` | String (read‑only) | UUID of the parent stream object (for hierarchy). |
+| `uuid` | String | String representation of the object's UUID. Set internally. |
+| `parent_uuid` | String | UUID of the parent stream object (for hierarchy). |
 | `aabb_sources` | Array[NodePath] | NodePaths to VisualInstance3D children used to calculate the total AABB. |
 | `aabb` | AABB (read‑only) | The computed world‑space bounding box from `aabb_sources`. |
 
