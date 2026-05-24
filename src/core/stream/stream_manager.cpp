@@ -80,7 +80,6 @@ void StreamManager::_process(double delta) {
 	const int MAX_LOADS_PER_FRAME = 4;
 	int loads = 0;
 	while (!load_queue_.empty() && loads < MAX_LOADS_PER_FRAME) {
-		UtilityFunctions::print("[StreamManager] Loading scene: ", uuids::to_string(load_queue_.front()).c_str());
 
 		uuids::uuid uuid = load_queue_.front();
 		load_queue_.pop();
@@ -179,7 +178,6 @@ void godot::StreamManager::remove_object(const uuids::uuid &uuid) {
 
 // 对象移除但节点需手动删除
 void StreamManager::_remove_object(const uuids::uuid &uuid) {
-	UtilityFunctions::print("[StreamManager] remove_object: ", uuids::to_string(uuid).c_str());
 	// 收集所有要删除的 UUID（自身 + 全部子孙）
 	a_hashset<uuids::uuid> to_delete = _collect_descendants(uuid);
 
@@ -214,8 +212,6 @@ void StreamManager::update_object(StreamObjectNode *node) {
 	uuids::uuid uuid = node->get_uuid();
 	if (!registry_.count(uuid))
 		return;
-
-	UtilityFunctions::print("[StreamManager] update_object: ", uuids::to_string(uuid).c_str());
 
 	// 更新 AABB 和 node_root（以防节点重新创建）
 	registry_[uuid].node_root = node->get_instance_id();
@@ -257,8 +253,7 @@ void godot::StreamManager::_query_aabb(std::vector<AABB> &aabbs) {
 							   // 将查询结果赋值给 shared_ptr 指向的 map
 							   *result_ptr = db.query_objects(aabbs);
 						   },
-							[this, result_ptr, aabbs]() {
-								UtilityFunctions::print("[StreamManager] query_aabb: ", static_cast<uint64_t>(aabbs.size()), " find: ", static_cast<uint64_t>(result_ptr->size()), " objects");
+							[this, result_ptr]() {
 								_on_query_result(*result_ptr);
 							} });
 }
@@ -306,9 +301,6 @@ void StreamManager::_on_object_exited(Node *node) {
 	auto obj = Object::cast_to<StreamObjectNode>(node);
 	if (!obj)
 		return;
-
-	UtilityFunctions::print("[StreamManager] object_exited: ", node->get_name());
-
 	uuids::uuid uuid = obj->get_uuid();
 
 	if (pending_removal_.count(uuid) || node->is_queued_for_deletion() || is_queued_for_deletion()) {
@@ -320,13 +312,11 @@ void StreamManager::_on_object_exited(Node *node) {
 	remove_object(uuid);
 }
 
-void godot::StreamManager::_on_load_probe(StreamWorldProbe *probe) {
-	UtilityFunctions::print("[StreamManager] load_probe: ", probe->get_name());
-	registered_probes_.insert(probe->get_instance_id());
+void godot::StreamManager::_on_load_probe(StreamWorldProbe *probe){
+registered_probes_.insert(probe->get_instance_id());
 }
 
 void godot::StreamManager::_on_unload_probe(StreamWorldProbe *probe) {
-	UtilityFunctions::print("[StreamManager] unload_probe: ", probe->get_name());
 	registered_probes_.erase(probe->get_instance_id());
 }
 
@@ -419,12 +409,9 @@ void StreamManager::_load_object_scene(const uuids::uuid &uuid) {
 	notify_property_list_changed();
 
 	_connect_node_signals(stream_node);
-
-	UtilityFunctions::print("[StreamManager] load object successful: ", uuids::to_string(uuid).c_str());
 }
 
 void StreamManager::_unload_object(const uuids::uuid &uuid) {
-	UtilityFunctions::print("[StreamManager] Unload object: ", uuids::to_string(uuid).c_str());
 	if (!registry_.count(uuid))
 		return;
 
@@ -467,7 +454,6 @@ void StreamManager::_unload_object(const uuids::uuid &uuid) {
 }
 
 void StreamManager::_save_object_to_file(const uuids::uuid &uuid, Node *node) {
-	UtilityFunctions::print("[StreamManager] save_object: ", uuids::to_string(uuid).c_str());
 
 	// 打包整个 node 树
 	Ref<PackedScene> scene;
