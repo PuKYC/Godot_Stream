@@ -4,6 +4,7 @@
 name: Make a GDExtension build for all supported platforms
 on:
   workflow_dispatch:
+  workflow_call:
 
 jobs:
   build:

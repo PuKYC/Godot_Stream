@@ -1,76 +1,21 @@
-name: Build and Release GDExtension (All Platforms)
+name: Release GDExtension Addons
 
 on:
   release:
-    types: [published] # 在 GitHub 网页点击 Publish release 时触发
+    types: [published]
 
 jobs:
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - { platform: linux, arch: x86_64, os: ubuntu-22.04 }
-          - { platform: linux, arch: x86_32, os: ubuntu-22.04 }
-          - { platform: linux, arch: arm64, os: ubuntu-22.04-arm }
-          - { platform: linux, arch: arm32, os: ubuntu-22.04-arm }
-          - { platform: windows, arch: x86_64, os: windows-latest }
-          - { platform: windows, arch: x86_32, os: windows-latest }
-          - { platform: windows, arch: arm64, os: windows-latest }
-          - { platform: macos, arch: universal, os: macos-latest }
-          - { platform: android, arch: x86_64, os: ubuntu-22.04 }
-          - { platform: android, arch: x86_32, os: ubuntu-22.04 }
-          - { platform: android, arch: arm64, os: ubuntu-22.04 }
-          - { platform: android, arch: arm32, os: ubuntu-22.04 }
-          # - { platform: ios, arch: arm64, os: macos-latest }
-          - { platform: web, arch: wasm32, os: ubuntu-22.04 }
+  # 调用可重用构建工作流
+  call-build:
+    uses: ./.github/workflows/make_build.yml
+    # 无需传递任何参数，矩阵已在 make_build.yml 中定义
 
-    runs-on: ${{ matrix.target.os }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: true
-
-      - name: Install multilib (Linux x86_32)
-        if: ${{ matrix.target.platform == 'linux' && matrix.target.arch == 'x86_32' }}
-        run: |
-          sudo apt-get update && sudo apt-get install -y gcc-multilib g++-multilib
-
-      - name: Setup godot-cpp
-        uses: ./godot-cpp/.github/actions/setup-godot-cpp
-        with:
-          platform: ${{ matrix.target.platform }}
-          em-version: 3.1.62
-
-      - name: Build GDExtension (template_release, -O3)
-        shell: sh
-        run: |
-          scons target=template_release \
-                platform=${{ matrix.target.platform }} \
-                arch=${{ matrix.target.arch }} \
-                precision=single \
-                optimize=speed
-
-      - name: Windows - Remove import libraries
-        if: ${{ matrix.target.platform == 'windows' }}
-        shell: pwsh
-        run: |
-          Get-ChildItem -Path project/addons -Recurse -Include *.exp,*.lib,*.pdb | Remove-Item -Force
-
-      - name: Upload addons artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: addons-${{ matrix.target.platform }}-${{ matrix.target.arch }}
-          path: project/addons
-          if-no-files-found: error
-
-  merge:
+  # 合并所有平台产物并发布
+  merge-and-release:
     runs-on: ubuntu-22.04
-    needs: build
+    needs: call-build
     permissions:
-      contents: write
+      contents: write # 用于上传 Release 资产
 
     steps:
       - name: Checkout
@@ -88,12 +33,14 @@ jobs:
             [ -d "$dir" ] && cp -rn "$dir"/* project/addons/ 2>/dev/null || true
           done
 
-      - name: Package addons folder
-        run: zip -r WolrdStream-${{ github.event.release.tag_name }}.zip project/addons
+      - name: Package addons folder (without project/ prefix)
+        run: |
+          cd project
+          zip -r ../addons-${{ github.event.release.tag_name }}.zip addons
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
-          files: WolrdStream-${{ github.event.release.tag_name }}.zip
+          files: addons-${{ github.event.release.tag_name }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
