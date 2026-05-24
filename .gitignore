@@ -65,3 +65,6 @@ CMakeUserPresets.json
 
 project/db_data/test.db-shm
 project/db_data/test.db-wal
+
+.cache
+.__pycache__
