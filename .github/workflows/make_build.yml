@@ -88,7 +88,7 @@ jobs:
         shell: sh
         run: |
           mkdir -p upload/addons
-          cp -r ${{ github.workspace }}/project/addons/* upload/addons/
+          cp -r "${{ github.workspace }}/project/addons/." upload/addons/
 
       # Upload the build（路径改为 upload/，里面只包含 addons/）
       - name: Upload Artifact
