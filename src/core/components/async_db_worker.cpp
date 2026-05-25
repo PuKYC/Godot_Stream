@@ -1,6 +1,7 @@
 #include "async_db_worker.h"
 
 #include "godot_cpp/variant/callable_method_pointer.hpp"
+#include "godot_cpp/variant/utility_functions.hpp"
 
 #include <godot_cpp/classes/engine.hpp>
 #include <godot_cpp/classes/main_loop.hpp>
@@ -56,7 +57,9 @@ AsyncDbWorker::~AsyncDbWorker() {
 	}
 	cv_.notify_one();
 	if (worker_.joinable()) {
+		godot::UtilityFunctions::print(1);
 		worker_.join();
+		godot::UtilityFunctions::print(2);
 	}
 
 	// 从缓存中移除自己（弱引用记录）
