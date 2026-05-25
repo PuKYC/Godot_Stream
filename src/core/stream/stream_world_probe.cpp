@@ -35,8 +35,10 @@ void StreamWorldProbe::_ready() {
 	if (!is_connected("visibility_changed", Callable(this, "_on_visibility_changed"))) {
 		connect("visibility_changed", Callable(this, "_on_visibility_changed"));
 	}
+	_connect_manager_signals();
 
-	call_deferred("_connect_manager_signals");
+	emit_signal("load_probe");
+
 }
 
 void StreamWorldProbe::_enter_tree() {
@@ -64,10 +66,11 @@ void StreamWorldProbe::_on_visibility_changed() {
 	}
 }
 
+// 需自己检查 _ready
 void StreamWorldProbe::_connect_manager_signals() {
 	// 若需要与 StreamManager 交互（如监听其销毁、重载事件），可在此实现
 	// 示例：获取管理器节点，检查有效性（不强制要求）
-	if (stream_manager_path_.is_empty() || is_visible_in_tree() || is_node_ready() || is_inside_tree()) {
+	if (stream_manager_path_.is_empty() || !is_visible_in_tree() || !is_inside_tree()) {
 		return;
 	}
 	auto *manager_node = get_node<StreamManager>(stream_manager_path_);
@@ -78,9 +81,6 @@ void StreamWorldProbe::_connect_manager_signals() {
 	// 连接管理器回调
 	connect("load_probe", callable_mp(manager_node, &StreamManager::_on_load_probe), CONNECT_APPEND_SOURCE_OBJECT);
 	connect("unload_probe", callable_mp(manager_node, &StreamManager::_on_unload_probe), CONNECT_APPEND_SOURCE_OBJECT);
-
-		emit_signal("load_probe");
-
 }
 
 // 属性实现
@@ -96,8 +96,7 @@ AABB StreamWorldProbe::get_aabb() const {
 void StreamWorldProbe::set_stream_manager_path(NodePath manager) {
 	stream_manager_path_ = manager;
 
-	_connect_manager_signals();
-
+	emit_signal("load_probe");
 }
 NodePath StreamWorldProbe::get_stream_manager_path() const {
 	return stream_manager_path_;

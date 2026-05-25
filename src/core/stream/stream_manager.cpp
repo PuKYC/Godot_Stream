@@ -514,7 +514,9 @@ void StreamManager::_save_object_to_file(const uuids::uuid &uuid, Node *node) {
 	ERR_FAIL_COND_MSG(path.is_empty(), "Cannot save object, derived path is empty for UUID: " + String(uuids::to_string(uuid).c_str()));
 
 	// 涉及 i/o 可能会引起主线程卡顿
-	callable_mp(this, &StreamManager::_async_save_object).call_deferred(scene, path);
+	// callable_mp(this, &StreamManager::_async_save_object).call_deferred(scene, path);
+
+	WorkerThreadPool::get_singleton()->add_task(callable_mp(this, &StreamManager::_async_save_object).bind(scene, path));
 }
 
 void godot::StreamManager::_async_save_object(const Ref<godot::PackedScene> scene, String path) {

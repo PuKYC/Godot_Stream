@@ -38,9 +38,9 @@ void StreamObjectNode::_notification(int p_what) {
 	if (!is_node_ready() || !is_inside_tree())
 		return;
 
-	if (p_what == NOTIFICATION_TRANSFORM_CHANGED)
-		// TODO 进行更准确的判断
-		emit_signal("object_aabb_changed");
+	if (p_what == NOTIFICATION_TRANSFORM_CHANGED) {
+		call_deferred("emit_signal", "object_aabb_changed");
+	}
 }
 
 // 仅获取自身aabb 不包括子对象
