@@ -96,8 +96,9 @@ AABB StreamWorldProbe::get_aabb() const {
 void StreamWorldProbe::set_stream_manager_path(NodePath manager) {
 	stream_manager_path_ = manager;
 
-	emit_signal("load_probe");
+	call_deferred("emit_signal", "load_probe");
 }
+
 NodePath StreamWorldProbe::get_stream_manager_path() const {
 	return stream_manager_path_;
 }
