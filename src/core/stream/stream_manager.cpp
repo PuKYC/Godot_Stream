@@ -31,10 +31,6 @@ StreamManager::StreamManager() :
 }
 
 StreamManager::~StreamManager() {
-	// 确保数据库操作完成
-	if (db_worker_.is_valid()) {
-		_flush_pending_db_ops(); // 最后一次同步
-	}
 } // db_worker_ Ref 在此处析构 → worker 线程可能已 join
 
 void StreamManager::_ready() {
@@ -47,6 +43,9 @@ void godot::StreamManager::_exit_tree() {
 	object_removal_.clear();
 	dirty_aabb_.clear(); // 节点即将离树，析构时无法再读 AABB
 	to_upsert_uuids_.clear(); // 同理，node_root 引用将失效
+
+	// 确保数据库操作完成
+	_flush_pending_db_ops(); // 最后一次同步
 }
 
 void StreamManager::_process(double delta) {

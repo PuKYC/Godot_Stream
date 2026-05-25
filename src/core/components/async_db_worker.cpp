@@ -57,19 +57,7 @@ AsyncDbWorker::~AsyncDbWorker() {
 	}
 	cv_.notify_one();
 	if (worker_.joinable()) {
-		godot::UtilityFunctions::print(1);
 		worker_.join();
-		godot::UtilityFunctions::print(2);
-	}
-
-	// 从缓存中移除自己（弱引用记录）
-	DbKey key{ db_path_, read_only_ };
-	{
-		std::lock_guard<std::mutex> lock(_cache_mutex);
-		auto it = _db_worker_cache.find(key);
-		if (it != _db_worker_cache.end() && it->second == get_instance_id()) {
-			_db_worker_cache.erase(it);
-		}
 	}
 }
 
