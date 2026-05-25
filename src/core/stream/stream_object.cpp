@@ -39,7 +39,7 @@ void StreamObjectNode::_notification(int p_what) {
 		return;
 
 	// TODO 进行更准确的判断
-	emit_signal("object_aabb_changed");
+	// emit_signal("object_aabb_changed");
 }
 
 // 仅获取自身aabb 不包括子对象
