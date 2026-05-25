@@ -1,5 +1,7 @@
 #include "stream_world_probe.h"
 #include "stream_manager.h" // 可选，仅用于类型转换，若不需要可注释
+
+#include <godot_cpp/classes/thread.hpp>
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 
@@ -93,10 +95,13 @@ AABB StreamWorldProbe::get_aabb() const {
 }
 
 void StreamWorldProbe::set_stream_manager_path(NodePath manager) {
-	stream_manager_path_ = manager;
+    // 检查是否为主线程。如果不是，立即报错并返回，避免后续崩溃。
+    ERR_FAIL_COND_MSG(!Thread::is_main_thread(),
+                      "set_stream_manager_path must be called from the main thread");
 
-	if(is_node_ready())
-	_connect_manager_signals();
+    stream_manager_path_ = manager;
+    if(is_node_ready())
+        _connect_manager_signals();
 }
 
 NodePath StreamWorldProbe::get_stream_manager_path() const {
