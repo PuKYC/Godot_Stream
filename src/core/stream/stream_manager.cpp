@@ -45,6 +45,8 @@ void StreamManager::_ready() {
 
 void godot::StreamManager::_exit_tree() {
 	object_removal_.clear();
+	dirty_aabb_.clear(); // 节点即将离树，析构时无法再读 AABB
+	to_upsert_uuids_.clear(); // 同理，node_root 引用将失效
 }
 
 void StreamManager::_process(double delta) {
@@ -337,6 +339,7 @@ void StreamManager::_on_object_exited(Node *node) {
 
 	if (pending_removal_.count(uuid) || node->is_queued_for_deletion() || is_queued_for_deletion()) {
 		_save_object_to_file(uuid, node);
+		dirty_aabb_.erase(uuid); //.节点退出后不再尝试读 AABB
 		return;
 	}
 
