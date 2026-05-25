@@ -38,8 +38,9 @@ void StreamObjectNode::_notification(int p_what) {
 	if (!is_node_ready() || !is_inside_tree())
 		return;
 
-	// TODO 进行更准确的判断
-	emit_signal("object_aabb_changed");
+	if (p_what == NOTIFICATION_TRANSFORM_CHANGED)
+		// TODO 进行更准确的判断
+		emit_signal("object_aabb_changed");
 }
 
 // 仅获取自身aabb 不包括子对象
@@ -81,22 +82,22 @@ void StreamObjectNode::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_uuid"), &StreamObjectNode::get_uuid_str);
 	ClassDB::bind_method(D_METHOD("set_uuid", "id"), &StreamObjectNode::set_uuid_str);
 	ADD_PROPERTY(PropertyInfo(Variant::STRING, "uuid", PROPERTY_HINT_NONE, "",
-							  PROPERTY_USAGE_STORAGE | PROPERTY_USAGE_READ_ONLY),
-				 "set_uuid", "get_uuid");
+						 PROPERTY_USAGE_STORAGE | PROPERTY_USAGE_READ_ONLY),
+			"set_uuid", "get_uuid");
 
 	// 只读 parent_uuid
 	ClassDB::bind_method(D_METHOD("get_parent_uuid"), &StreamObjectNode::get_parent_uuid_str);
 	ClassDB::bind_method(D_METHOD("set_parent_uuid", "id"), &StreamObjectNode::set_parent_uuid_str);
 	ADD_PROPERTY(PropertyInfo(Variant::STRING, "parent_uuid", PROPERTY_HINT_NONE, "",
-							  PROPERTY_USAGE_STORAGE | PROPERTY_USAGE_READ_ONLY),
-				 "set_parent_uuid", "get_parent_uuid");
+						 PROPERTY_USAGE_STORAGE | PROPERTY_USAGE_READ_ONLY),
+			"set_parent_uuid", "get_parent_uuid");
 
 	// aabb_sources 可配置
 	ClassDB::bind_method(D_METHOD("set_aabb_sources", "arr"), &StreamObjectNode::set_aabb_sources);
 	ClassDB::bind_method(D_METHOD("get_aabb_sources"), &StreamObjectNode::get_aabb_sources);
 	ADD_PROPERTY(PropertyInfo(Variant::ARRAY, "aabb_sources", PROPERTY_HINT_NONE, "",
-							  PROPERTY_USAGE_STORAGE | PROPERTY_USAGE_EDITOR),
-				 "set_aabb_sources", "get_aabb_sources");
+						 PROPERTY_USAGE_STORAGE | PROPERTY_USAGE_EDITOR),
+			"set_aabb_sources", "get_aabb_sources");
 
 	MethodInfo object_aabb_changed;
 	object_aabb_changed.name = "object_aabb_changed";
