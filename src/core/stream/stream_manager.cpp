@@ -146,13 +146,16 @@ String StreamManager::get_database_path() const {
 
 void StreamManager::_query_aabb(const AABB &aabb) {
 	auto result_ptr = std::make_shared<a_hashmap<uuids::uuid, ObjectData>>();
+	auto id = get_instance_id();
 	db_worker_->push_task({ [aabb, result_ptr](StreamSqliteDB &db) {
 							   // 将查询结果赋值给 shared_ptr 指向的 map
 							   *result_ptr = db.query_objects(aabb);
 						   },
-			[this, result_ptr]() {
-				this->_on_query_result(*result_ptr);
-			} });
+			[id, result_ptr]() {
+			StreamManager *self = Object::cast_to<StreamManager>(ObjectDB::get_instance(id));
+			if (self) {
+				self->_on_query_result(*result_ptr);
+			} } });
 }
 
 //  对象管理（由信号触发 不一定）
@@ -268,12 +271,15 @@ void godot::StreamManager::_query_aabb(std::vector<AABB> &aabbs) {
 	// DEBUG: 查询列表不应为空
 	DEV_ASSERT(!aabbs.empty());
 	auto result_ptr = std::make_shared<a_hashmap<uuids::uuid, ObjectData>>();
+	auto id = get_instance_id();
 	db_worker_->push_task({ [aabbs, result_ptr](StreamSqliteDB &db) {
 							   // 将查询结果赋值给 shared_ptr 指向的 map
 							   *result_ptr = db.query_objects(aabbs);
 						   },
-			[this, result_ptr]() {
-				this->_on_query_result(*result_ptr);
+			[id, result_ptr]() {
+				StreamManager *self = Object::cast_to<StreamManager>(ObjectDB::get_instance(id));
+				if (self)
+					self->_on_query_result(*result_ptr);
 			} });
 }
 
