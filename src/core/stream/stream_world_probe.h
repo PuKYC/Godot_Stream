@@ -18,6 +18,8 @@ public:
 	void _enter_tree() override;
 	void _exit_tree() override;
 
+	void _notification(int p_what);
+
 	void set_aabb(const AABB &aabb);
 	AABB get_aabb() const;
 
@@ -28,6 +30,7 @@ public:
 protected:
 	void _on_visibility_changed();
 
+	void _diconnect_manager_signals();
 	void _connect_manager_signals();
 
 	static void _bind_methods();

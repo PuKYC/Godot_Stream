@@ -65,6 +65,24 @@ void StreamWorldProbe::_on_visibility_changed() {
 	}
 }
 
+void StreamWorldProbe::_notification(int p_what) {
+	if (p_what == NOTIFICATION_PREDELETE) {
+		_diconnect_manager_signals();
+	}
+}
+
+void StreamWorldProbe::_diconnect_manager_signals() {
+	auto *manager_node = get_node<StreamManager>(stream_manager_path_);
+	if (!manager_node)
+		return;
+
+	if (is_connected("load_probe", callable_mp(manager_node, &StreamManager::_on_load_probe)))
+		disconnect("load_probe", callable_mp(manager_node, &StreamManager::_on_load_probe));
+
+	if (is_connected("unload_probe", callable_mp(manager_node, &StreamManager::_on_unload_probe)))
+		disconnect("unload_probe", callable_mp(manager_node, &StreamManager::_on_unload_probe));
+}
+
 // 需自己检查 _ready
 void StreamWorldProbe::_connect_manager_signals() {
 	// 若需要与 StreamManager 交互（如监听其销毁、重载事件），可在此实现
@@ -72,6 +90,7 @@ void StreamWorldProbe::_connect_manager_signals() {
 	if (stream_manager_path_.is_empty() || !is_visible_in_tree() || !is_inside_tree()) {
 		return;
 	}
+
 	auto *manager_node = get_node<StreamManager>(stream_manager_path_);
 	if (!manager_node) {
 		UtilityFunctions::push_warning("StreamWorldProbe: StreamManager not found at path: ", stream_manager_path_);
