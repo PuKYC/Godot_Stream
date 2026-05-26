@@ -72,6 +72,7 @@ void StreamWorldProbe::_notification(int p_what) {
 }
 
 void StreamWorldProbe::_diconnect_manager_signals() {
+	if(!has_node(stream_manager_path_)) return;
 	auto *manager_node = get_node<StreamManager>(stream_manager_path_);
 	if (!manager_node)
 		return;
@@ -87,7 +88,7 @@ void StreamWorldProbe::_diconnect_manager_signals() {
 void StreamWorldProbe::_connect_manager_signals() {
 	// 若需要与 StreamManager 交互（如监听其销毁、重载事件），可在此实现
 	// 示例：获取管理器节点，检查有效性（不强制要求）
-	if (stream_manager_path_.is_empty() || !is_visible_in_tree() || !is_inside_tree()) {
+	if (stream_manager_path_.is_empty() || !is_visible_in_tree() || !is_inside_tree() || !has_node(stream_manager_path_)) {
 		return;
 	}
 
