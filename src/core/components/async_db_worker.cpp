@@ -44,13 +44,22 @@ godot::Ref<AsyncDbWorker> AsyncDbWorker::make_db(const godot::String &db_path, b
 	return worker;
 }
 
-AsyncDbWorker::AsyncDbWorker(const String &db_path, bool read_only)
-	: db_path_(db_path), read_only_(read_only) {
+AsyncDbWorker::AsyncDbWorker(const String &db_path, bool read_only) :
+		db_path_(db_path), read_only_(read_only) {
 	db_ = std::make_unique<StreamSqliteDB>(db_path.utf8().get_data(), read_only);
 	worker_ = std::thread(&AsyncDbWorker::thread_loop, this);
 }
 
 AsyncDbWorker::~AsyncDbWorker() {
+	// 先断开 SceneTree 的连接，防止析构后 callable_mp 悬挂
+	auto *main_loop = Engine::get_singleton()->get_main_loop();
+	SceneTree *tree = Object::cast_to<SceneTree>(main_loop);
+	if (tree) {
+		auto cb = callable_mp(this, &AsyncDbWorker::_flush_callbacks);
+		if (tree->is_connected("process_frame", cb))
+			tree->disconnect("process_frame", cb);
+	}
+
 	{
 		std::lock_guard<std::mutex> lock(queue_mutex_);
 		stop_ = true;
