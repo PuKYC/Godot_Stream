@@ -33,7 +33,7 @@ void StreamWorldProbe::_bind_methods() {
 void StreamWorldProbe::_ready() {
 	// 连接自身的可见性变化信号
 	if (!is_connected("visibility_changed", Callable(this, "_on_visibility_changed"))) {
-		connect("visibility_changed", Callable(this, "_on_visibility_changed"));
+		connect("visibility_changed", Callable(this, "_on_visibility_changed"), CONNECT_DEFERRED);
 	}
 	_connect_manager_signals();
 
