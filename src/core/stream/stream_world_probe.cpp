@@ -115,6 +115,7 @@ AABB StreamWorldProbe::get_aabb() const {
 void StreamWorldProbe::set_stream_manager_path(NodePath manager) {
 	stream_manager_path_ = manager;
 
+	if(stream_manager_path_.is_empty() && is_visible_in_tree() && is_inside_tree() && has_node(stream_manager_path_))
 	emit_signal("load_probe");
 }
 
