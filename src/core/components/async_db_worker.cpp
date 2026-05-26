@@ -51,15 +51,6 @@ AsyncDbWorker::AsyncDbWorker(const String &db_path, bool read_only) :
 }
 
 AsyncDbWorker::~AsyncDbWorker() {
-	// 先断开 SceneTree 的连接，防止析构后 callable_mp 悬挂
-	auto *main_loop = Engine::get_singleton()->get_main_loop();
-	SceneTree *tree = Object::cast_to<SceneTree>(main_loop);
-	if (tree) {
-		auto cb = callable_mp(this, &AsyncDbWorker::_flush_callbacks);
-		if (tree->is_connected("process_frame", cb))
-			tree->disconnect("process_frame", cb);
-	}
-
 	{
 		std::lock_guard<std::mutex> lock(queue_mutex_);
 		stop_ = true;
@@ -67,6 +58,19 @@ AsyncDbWorker::~AsyncDbWorker() {
 	cv_.notify_one();
 	if (worker_.joinable()) {
 		worker_.join();
+	}
+}
+
+void AsyncDbWorker::_notification(int p_what) {
+	if (p_what == NOTIFICATION_PREDELETE) {
+		// 先断开 SceneTree 的连接，防止析构后 callable_mp 悬挂
+		auto *main_loop = Engine::get_singleton()->get_main_loop();
+		SceneTree *tree = Object::cast_to<SceneTree>(main_loop);
+		if (tree) {
+			auto cb = callable_mp(this, &AsyncDbWorker::_flush_callbacks);
+			if (tree->is_connected("process_frame", cb))
+				tree->disconnect("process_frame", cb);
+		}
 	}
 }
 

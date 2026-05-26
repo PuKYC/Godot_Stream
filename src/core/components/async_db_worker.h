@@ -28,6 +28,9 @@ public:
 	AsyncDbWorker(const godot::String &db_path, bool read_only = false);
 	~AsyncDbWorker();
 
+	void _notification(int p_what);
+
+
 	void push_task(Task task);
 	void _flush_callbacks();
 
