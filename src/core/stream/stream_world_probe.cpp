@@ -38,7 +38,6 @@ void StreamWorldProbe::_ready() {
 	_connect_manager_signals();
 
 	emit_signal("load_probe");
-
 }
 
 void StreamWorldProbe::_enter_tree() {
@@ -79,8 +78,8 @@ void StreamWorldProbe::_connect_manager_signals() {
 		return;
 	}
 	// 连接管理器回调
-	connect("load_probe", callable_mp(manager_node, &StreamManager::_on_load_probe), CONNECT_APPEND_SOURCE_OBJECT);
-	connect("unload_probe", callable_mp(manager_node, &StreamManager::_on_unload_probe), CONNECT_APPEND_SOURCE_OBJECT);
+	connect("load_probe", callable_mp(manager_node, &StreamManager::_on_load_probe), CONNECT_APPEND_SOURCE_OBJECT | CONNECT_DEFERRED);
+	connect("unload_probe", callable_mp(manager_node, &StreamManager::_on_unload_probe), CONNECT_APPEND_SOURCE_OBJECT | CONNECT_DEFERRED);
 }
 
 // 属性实现
@@ -96,7 +95,7 @@ AABB StreamWorldProbe::get_aabb() const {
 void StreamWorldProbe::set_stream_manager_path(NodePath manager) {
 	stream_manager_path_ = manager;
 
-	call_deferred("emit_signal", "load_probe");
+	emit_signal("load_probe");
 }
 
 NodePath StreamWorldProbe::get_stream_manager_path() const {

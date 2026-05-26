@@ -39,7 +39,7 @@ void StreamObjectNode::_notification(int p_what) {
 		return;
 
 	if (p_what == NOTIFICATION_TRANSFORM_CHANGED) {
-		call_deferred("emit_signal", "object_aabb_changed");
+		emit_signal("object_aabb_changed");
 	}
 }
 

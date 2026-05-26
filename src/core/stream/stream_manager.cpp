@@ -295,7 +295,7 @@ void StreamManager::_connect_node_signals(StreamObjectNode *node) {
 	// DEBUG: 节点必须有效
 	ERR_FAIL_COND(!node);
 	if (!node->is_connected("object_aabb_changed", callable_mp(this, &StreamManager::_on_object_aabb_changed)))
-		node->connect("object_aabb_changed", callable_mp(this, &StreamManager::_on_object_aabb_changed), CONNECT_APPEND_SOURCE_OBJECT);
+		node->connect("object_aabb_changed", callable_mp(this, &StreamManager::_on_object_aabb_changed), CONNECT_APPEND_SOURCE_OBJECT | CONNECT_DEFERRED);
 }
 
 String StreamManager::_derive_object_dir(const String &db_path) const {
