@@ -34,6 +34,7 @@ public:
 	void _ready() override;
 	void _exit_tree() override;
 	void _process(double delta) override;
+	void _notification(int p_what);
 
 	// 公开接口（供编辑器/GDScript）
 	void set_database_path(const String &path);

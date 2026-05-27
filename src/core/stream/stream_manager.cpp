@@ -3,6 +3,7 @@
  */
 #include "stream_manager.h"
 #include "core/components/async_db_worker.h"
+#include "godot_cpp/classes/node.hpp"
 
 #include <chrono>
 
@@ -19,6 +20,22 @@
 #include <godot_cpp/variant/variant.hpp>
 
 using namespace godot;
+
+// 断开所有连接到这个对象的信号（即断开所有我作为监听者的连接）
+void disconnect_all_incoming(Node* self) {
+    // 获取所有指向本对象的信号连接
+    TypedArray<Dictionary> incoming = self->get_incoming_connections();
+
+    for (int i = 0; i < incoming.size(); i++) {
+        Dictionary conn = incoming[i];
+        Object *source = conn["source"];          // 信号发出者
+        StringName signal_name = conn["signal"];  // 信号名称
+        Callable my_callback = conn["callable"];  // 本对象上的回调
+
+        // 从源对象上断开这个连接
+        source->disconnect(signal_name, my_callback);
+    }
+}
 
 // 构造 析构
 StreamManager::StreamManager() :
@@ -101,6 +118,12 @@ void StreamManager::_process(double delta) {
 		uuids::uuid uuid = loaded_queue_.front();
 		load_queue_.push(uuid);
 		loaded_queue_.pop();
+	}
+}
+
+void StreamManager::_notification(int p_what){
+	if (p_what == NOTIFICATION_PREDELETE) {
+	disconnect_all_incoming(this);
 	}
 }
 
@@ -295,7 +318,7 @@ void StreamManager::_connect_node_signals(StreamObjectNode *node) {
 	// DEBUG: 节点必须有效
 	ERR_FAIL_COND(!node);
 	if (!node->is_connected("object_aabb_changed", callable_mp(this, &StreamManager::_on_object_aabb_changed)))
-		node->connect("object_aabb_changed", callable_mp(this, &StreamManager::_on_object_aabb_changed), CONNECT_APPEND_SOURCE_OBJECT | CONNECT_DEFERRED);
+		node->connect("object_aabb_changed", callable_mp(this, &StreamManager::_on_object_aabb_changed), CONNECT_APPEND_SOURCE_OBJECT);
 }
 
 String StreamManager::_derive_object_dir(const String &db_path) const {

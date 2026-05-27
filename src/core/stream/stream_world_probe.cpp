@@ -98,8 +98,8 @@ void StreamWorldProbe::_connect_manager_signals() {
 		return;
 	}
 	// 连接管理器回调
-	connect("load_probe", callable_mp(manager_node, &StreamManager::_on_load_probe), CONNECT_APPEND_SOURCE_OBJECT | CONNECT_DEFERRED);
-	connect("unload_probe", callable_mp(manager_node, &StreamManager::_on_unload_probe), CONNECT_APPEND_SOURCE_OBJECT | CONNECT_DEFERRED);
+	connect("load_probe", callable_mp(manager_node, &StreamManager::_on_load_probe), CONNECT_APPEND_SOURCE_OBJECT );
+	connect("unload_probe", callable_mp(manager_node, &StreamManager::_on_unload_probe), CONNECT_APPEND_SOURCE_OBJECT );
 }
 
 // 属性实现
@@ -115,7 +115,7 @@ AABB StreamWorldProbe::get_aabb() const {
 void StreamWorldProbe::set_stream_manager_path(NodePath manager) {
 	stream_manager_path_ = manager;
 
-	if(stream_manager_path_.is_empty() && is_visible_in_tree() && is_inside_tree() && has_node(stream_manager_path_))
+	if(stream_manager_path_.is_empty() && is_visible_in_tree() && is_inside_tree() && has_node(stream_manager_path_) && !get_node<StreamManager>(stream_manager_path_)->is_queued_for_deletion())
 	emit_signal("load_probe");
 }
 
