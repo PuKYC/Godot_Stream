@@ -32,7 +32,8 @@ public:
 	AABB get_aabb() const;
 
 	// 节点生命周期钩子（只发信号，不做业务）
-	void _ready() override;
+	void _enter_tree() override;
+	void _exit_tree() override;
 	void _notification(int p_what);
 
 protected:
