@@ -72,12 +72,15 @@ void StreamManager::_ready() {
 }
 
 void godot::StreamManager::_exit_tree() {
+	disconnect_all_incoming(this);
+
 	object_removal_.clear();
 	dirty_aabb_.clear(); // 节点即将离树，析构时无法再读 AABB
 	to_upsert_uuids_.clear(); // 同理，node_root 引用将失效
 
 	// 确保数据库操作完成
 	_flush_pending_db_ops(); // 最后一次同步
+
 }
 
 void StreamManager::_process(double delta) {
@@ -339,7 +342,7 @@ void StreamManager::_connect_node_signals(StreamObjectNode *node) {
 void StreamManager::_diconnect_node_signals(StreamObjectNode *node) {
 	// DEBUG: 节点必须有效
 	ERR_FAIL_COND(!node);
-	if (!node->is_connected("object_aabb_changed", callable_mp(this, &StreamManager::_on_object_aabb_changed)))
+	if (node->is_connected("object_aabb_changed", callable_mp(this, &StreamManager::_on_object_aabb_changed)))
 		node->disconnect("object_aabb_changed", callable_mp(this, &StreamManager::_on_object_aabb_changed));
 }
 
