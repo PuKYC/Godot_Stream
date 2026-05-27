@@ -38,12 +38,17 @@ void StreamObjectNode::_exit_tree() {
 }
 
 	void StreamObjectNode::_notification(int p_what) {
+		// 拒绝在销毁阶段处理任何通知：此时 Godot 内部信号系统可能已部分拆解，emit_signal 会崩溃
+		if (is_queued_for_deletion() || p_what == NOTIFICATION_PREDELETE || p_what == NOTIFICATION_EXIT_TREE)
+			return;
+
 		// 仅在节点就绪且处于场景树中时处理
 		if (!is_node_ready() || !is_inside_tree())
 			return;
 
 		if (p_what == NOTIFICATION_TRANSFORM_CHANGED) {
-			if (!is_queued_for_deletion() && get_parent()->is_class("StreamManager") && !get_parent()->is_queued_for_deletion())
+			Node *parent = get_parent();
+			if (parent && parent->is_class("StreamManager") && !parent->is_queued_for_deletion())
 				emit_signal("object_aabb_changed");
 		}
 	}
