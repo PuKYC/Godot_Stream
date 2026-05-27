@@ -72,13 +72,19 @@ void StreamManager::_ready() {
 }
 
 void godot::StreamManager::_exit_tree() {
+	// 先断开 child_exiting_tree 信号，防止后续子节点离树时触发 _on_object_exited
+	// （在关闭阶段 _on_object_exited 会尝试提交异步任务，可能访问已析构的 MethodBind）
+	if (is_connected("child_exiting_tree", callable_mp(this, &StreamManager::_on_object_exited)))
+		disconnect("child_exiting_tree", callable_mp(this, &StreamManager::_on_object_exited));
+
 	disconnect_all_incoming(this);
 
 	object_removal_.clear();
 	dirty_aabb_.clear(); // 节点即将离树，析构时无法再读 AABB
 	to_upsert_uuids_.clear(); // 同理，node_root 引用将失效
 
-	// 确保数据库操作完成
+	// 最后同步：此时 dirty_aabb_ 已清空，不会尝试读取节点 AABB
+	// 仅处理剩余的 upsert/remove 数据
 	_flush_pending_db_ops(); // 最后一次同步
 
 }
@@ -563,10 +569,17 @@ void StreamManager::_save_object_to_file(const uuids::uuid &uuid, Node *node) {
 	String path = _object_scene_path(uuid);
 	ERR_FAIL_COND_MSG(path.is_empty(), "Cannot save object, derived path is empty for UUID: " + String(uuids::to_string(uuid).c_str()));
 
-	// 涉及 i/o 可能会引起主线程卡顿
-	// callable_mp(this, &StreamManager::_async_save_object).call_deferred(scene, path);
-
-	WorkerThreadPool::get_singleton()->add_task(callable_mp(this, &StreamManager::_async_save_object).bind(scene, path));
+	// 关闭/卸载阶段：同步保存，避免 callable_mp 在 MethodBind 表析构后悬空
+	if (!is_inside_tree() || is_queued_for_deletion()) {
+		Error err = ResourceSaver::get_singleton()->save(scene, path, ResourceSaver::FLAG_COMPRESS);
+		if (err != OK) {
+			ERR_PRINT("Failed to save scene to " + path);
+		}
+	} else {
+		// 正常运行阶段：异步保存避免主线程卡顿
+		WorkerThreadPool::get_singleton()->add_task(
+				callable_mp(this, &StreamManager::_async_save_object).bind(scene, path));
+	}
 }
 
 void godot::StreamManager::_async_save_object(const Ref<godot::PackedScene> scene, String path) {

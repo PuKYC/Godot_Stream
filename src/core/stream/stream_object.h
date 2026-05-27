@@ -1,6 +1,5 @@
 #pragma once
 
-#include "stream_manager.h" // 仅为前置声明，不调用其方法
 #include "uuid.h"
 
 #include <godot_cpp/classes/node3d.hpp>
@@ -9,6 +8,8 @@
 #include <godot_cpp/variant/typed_array.hpp>
 
 namespace godot {
+
+class StreamManager; // 前置声明
 
 class StreamObjectNode : public Node3D {
 	GDCLASS(StreamObjectNode, Node3D)
