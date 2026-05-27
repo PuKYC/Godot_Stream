@@ -23,16 +23,32 @@ using namespace godot;
 
 // 断开所有连接到这个对象的信号（即断开所有我作为监听者的连接）
 void disconnect_all_incoming(Node* self) {
-    // 获取所有指向本对象的信号连接
-    TypedArray<Dictionary> incoming = self->get_incoming_connections();
+    ERR_FAIL_NULL(self);  // Godot 惯用空指针宏，会打印错误并直接返回
+    const TypedArray<Dictionary>& incoming = self->get_incoming_connections();
 
-    for (int i = 0; i < incoming.size(); i++) {
-        Dictionary conn = incoming[i];
-        Object *source = conn["source"];          // 信号发出者
-        StringName signal_name = conn["signal"];  // 信号名称
-        Callable my_callback = conn["callable"];  // 本对象上的回调
+    for (int i = 0; i < incoming.size(); ++i) {
+        const Dictionary& conn = incoming[i];
 
-        // 从源对象上断开这个连接
+        // 提取并校验信号来源
+        Object* source = conn.get("source", nullptr);
+        if (source == nullptr) {
+            WARN_PRINT("disconnect_all_incoming: invalid source in incoming connection, skipping.");
+            continue;
+        }
+
+        // 提取信号名和回调（使用 get 提供默认值，避免异常崩溃）
+        const StringName signal_name = conn.get("signal", StringName());
+        const Callable my_callback = conn.get("callable", Callable());
+
+        if (signal_name == StringName() || !my_callback.is_valid()) {
+            WARN_PRINT(vformat(
+                "disconnect_all_incoming: incomplete connection info (signal: %s, callable valid: %s), skipping.",
+                signal_name, my_callback.is_valid()
+            ));
+            continue;
+        }
+
+        // 安全断开
         source->disconnect(signal_name, my_callback);
     }
 }
