@@ -88,6 +88,7 @@ private:
 	// 内部方法
 	static uuids::uuid _generate_uuid();
 	void _connect_node_signals(StreamObjectNode *node);
+	void _diconnect_node_signals(StreamObjectNode *node);
 
 	void _init_database(const String &path); // 初始化数据库
 	String _object_scene_path(const uuids::uuid &uuid) const; // 构建对象场景路径

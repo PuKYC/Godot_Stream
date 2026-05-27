@@ -22,35 +22,34 @@
 using namespace godot;
 
 // 断开所有连接到这个对象的信号（即断开所有我作为监听者的连接）
-void disconnect_all_incoming(Node* self) {
-    ERR_FAIL_NULL(self);  // Godot 惯用空指针宏，会打印错误并直接返回
-    const TypedArray<Dictionary>& incoming = self->get_incoming_connections();
+void disconnect_all_incoming(Node *self) {
+	ERR_FAIL_NULL(self); // Godot 惯用空指针宏，会打印错误并直接返回
+	const TypedArray<Dictionary> &incoming = self->get_incoming_connections();
 
-    for (int i = 0; i < incoming.size(); ++i) {
-        const Dictionary& conn = incoming[i];
+	for (int i = 0; i < incoming.size(); ++i) {
+		const Dictionary &conn = incoming[i];
 
-        // 提取并校验信号来源
-        Object* source = conn.get("source", nullptr);
-        if (source == nullptr) {
-            WARN_PRINT("disconnect_all_incoming: invalid source in incoming connection, skipping.");
-            continue;
-        }
+		// 提取并校验信号来源
+		Object *source = conn.get("source", nullptr);
+		if (source == nullptr) {
+			WARN_PRINT("disconnect_all_incoming: invalid source in incoming connection, skipping.");
+			continue;
+		}
 
-        // 提取信号名和回调（使用 get 提供默认值，避免异常崩溃）
-        const StringName signal_name = conn.get("signal", StringName());
-        const Callable my_callback = conn.get("callable", Callable());
+		// 提取信号名和回调（使用 get 提供默认值，避免异常崩溃）
+		const StringName signal_name = conn.get("signal", StringName());
+		const Callable my_callback = conn.get("callable", Callable());
 
-        if (signal_name == StringName() || !my_callback.is_valid()) {
-            WARN_PRINT(vformat(
-                "disconnect_all_incoming: incomplete connection info (signal: %s, callable valid: %s), skipping.",
-                signal_name, my_callback.is_valid()
-            ));
-            continue;
-        }
+		if (signal_name == StringName() || !my_callback.is_valid()) {
+			WARN_PRINT(vformat(
+					"disconnect_all_incoming: incomplete connection info (signal: %s, callable valid: %s), skipping.",
+					signal_name, my_callback.is_valid()));
+			continue;
+		}
 
-        // 安全断开
-        source->disconnect(signal_name, my_callback);
-    }
+		// 安全断开
+		source->disconnect(signal_name, my_callback);
+	}
 }
 
 // 构造 析构
@@ -137,9 +136,9 @@ void StreamManager::_process(double delta) {
 	}
 }
 
-void StreamManager::_notification(int p_what){
+void StreamManager::_notification(int p_what) {
 	if (p_what == NOTIFICATION_PREDELETE) {
-	disconnect_all_incoming(this);
+		// disconnect_all_incoming(this);
 	}
 }
 
@@ -337,6 +336,13 @@ void StreamManager::_connect_node_signals(StreamObjectNode *node) {
 		node->connect("object_aabb_changed", callable_mp(this, &StreamManager::_on_object_aabb_changed), CONNECT_APPEND_SOURCE_OBJECT);
 }
 
+void StreamManager::_diconnect_node_signals(StreamObjectNode *node) {
+	// DEBUG: 节点必须有效
+	ERR_FAIL_COND(!node);
+	if (!node->is_connected("object_aabb_changed", callable_mp(this, &StreamManager::_on_object_aabb_changed)))
+		node->disconnect("object_aabb_changed", callable_mp(this, &StreamManager::_on_object_aabb_changed));
+}
+
 String StreamManager::_derive_object_dir(const String &db_path) const {
 	String base = db_path.get_base_dir();
 	String name = "." + db_path.get_file().get_basename();
@@ -374,6 +380,8 @@ void StreamManager::_on_object_exited(Node *node) {
 	if (!obj)
 		return;
 	uuids::uuid uuid = obj->get_uuid();
+
+	_diconnect_node_signals(obj);
 
 	if (pending_removal_.count(uuid) || node->is_queued_for_deletion() || is_queued_for_deletion()) {
 		_save_object_to_file(uuid, node);
