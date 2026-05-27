@@ -39,8 +39,8 @@ void StreamObjectNode::_notification(int p_what) {
 		return;
 
 	if (p_what == NOTIFICATION_TRANSFORM_CHANGED) {
-		if(get_parent()->is_class("StreamManager") && !get_parent()->is_queued_for_deletion())
-		emit_signal("object_aabb_changed");
+		if (!is_queued_for_deletion() && get_parent()->is_class("StreamManager") && !get_parent()->is_queued_for_deletion())
+			emit_signal("object_aabb_changed");
 	}
 }
 
