@@ -23,6 +23,8 @@ class StreamObjectNode : public Node3D {
 
 	// 延迟信号标志：避免在 _notification 中发射信号（场景树可能不一致）
 	bool aabb_changed_pending_ = false;
+	// 销毁标志：NOTIFICATION_PREDELETE 发送后，禁止 _process 再发射信号
+	bool being_destroyed_ = false;
 
 public:
 	// 外部只读访问
