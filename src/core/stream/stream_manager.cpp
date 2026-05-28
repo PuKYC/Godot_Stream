@@ -130,6 +130,8 @@ void StreamManager::_process(double delta) {
 
 void StreamManager::_notification(int p_what) {
 	// StreamManager 不再有需要通过 _notification 清理的自定义信号连接
+	if (p_what == NOTIFICATION_PREDELETE)
+		shutting_down_ = true;
 }
 
 // 数据库初始化
@@ -437,7 +439,7 @@ void StreamManager::_on_query_result(const a_hashmap<uuids::uuid, ObjectData> &d
 
 void StreamManager::_load_object_scene(const uuids::uuid &uuid) {
 	// 关闭阶段不做任何加载，避免 add_child 触发 VkThread 崩溃
-	if (!is_inside_tree() || is_queued_for_deletion() || shutting_down_)
+	if (!is_inside_tree() || is_queued_for_deletion())
 		return;
 
 	// DEBUG: 加载前确保 UUID 有效且已注册
@@ -465,12 +467,38 @@ void StreamManager::_load_object_scene(const uuids::uuid &uuid) {
 		return;
 	}
 
+	// 若缓存返回的节点已被标记删除（LRU 驱逐后残留），丢弃并从场景缓存重新实例化
+	if (node->is_queued_for_deletion()) {
+		Ref<PackedScene> scene = cache_.get_scene(uuid);
+		if (scene.is_valid()) {
+			node = scene->instantiate();
+			if (!node) {
+				WARN_PRINT("Failed to re-instantiate scene for: " + String(uuids::to_string(uuid).c_str()));
+				return;
+			}
+		} else {
+			// 场景缓存也未命中，回退到异步加载
+			cache_.remove_scene(uuid);
+			if (cache_.request_scene(uuid, scene_path)) {
+				loaded_queue_.push(uuid);
+			}
+			return;
+		}
+	}
+
 	// 成功获取实例
 	StreamObjectNode *stream_node = Object::cast_to<StreamObjectNode>(node);
 	if (!stream_node) {
 		// DEBUG: 获取到的节点不是预期类型，属于严重错误
 		ERR_PRINT("Loaded scene is not a StreamObjectNode: " + scene_path);
 		memdelete(node);
+		return;
+	}
+
+	// add_child 前校验节点在引擎侧仍然有效
+	auto node_id = stream_node->get_instance_id();
+	if (!ObjectDB::get_instance(node_id)) {
+		ERR_PRINT("StreamObjectNode instance is no longer valid before add_child: " + String(uuids::to_string(uuid).c_str()));
 		return;
 	}
 
