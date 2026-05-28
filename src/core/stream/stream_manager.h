@@ -40,16 +40,17 @@ public:
 	void set_database_path(const String &path);
 	String get_database_path() const;
 
-	// object信号回调
-	void _on_object_aabb_changed(StreamObjectNode *node); // aabb改变时
+	// object 回调（由 StreamObjectNode 直接调用，非信号）
+	void on_object_aabb_changed(StreamObjectNode *node); // aabb改变时
+	void on_load_probe(StreamWorldProbe *probe);
+	void on_unload_probe(StreamWorldProbe *probe);
+
+	// 内部信号回调（仅 child_entered_tree / child_exiting_tree）
 	void _on_object_entered(Node *node); // 进入场景树时
 	void _on_object_exited(Node *node); // 离开场景树时
-	// probe信号回调(由probe调用)
-	void _on_load_probe(StreamWorldProbe *probe);
-	void _on_unload_probe(StreamWorldProbe *probe);
 
-	// 对象管理（由 StreamObjectNode 信号触发）
-	void add_object(StreamObjectNode *node); // 可能通过 manager通知触发
+	// 对象管理
+	void add_object(StreamObjectNode *node);
 	void remove_object(const uuids::uuid &uuid);
 	void update_object(StreamObjectNode *node);
 
@@ -87,8 +88,6 @@ private:
 
 	// 内部方法
 	static uuids::uuid _generate_uuid();
-	void _connect_node_signals(StreamObjectNode *node);
-	void _diconnect_node_signals(StreamObjectNode *node);
 
 	void _init_database(const String &path); // 初始化数据库
 	String _object_scene_path(const uuids::uuid &uuid) const; // 构建对象场景路径

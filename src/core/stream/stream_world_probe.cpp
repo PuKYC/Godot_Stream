@@ -1,111 +1,77 @@
 #include "stream_world_probe.h"
-#include "stream_manager.h" // 可选，仅用于类型转换，若不需要可注释
+#include "stream_manager.h"
 
-#include <godot_cpp/classes/thread.hpp>
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 
 namespace godot {
 
 void StreamWorldProbe::_bind_methods() {
-	// 绑定属性 getter/setter
 	ClassDB::bind_method(D_METHOD("set_aabb", "aabb"), &StreamWorldProbe::set_aabb);
 	ClassDB::bind_method(D_METHOD("get_aabb"), &StreamWorldProbe::get_aabb);
 	ClassDB::bind_method(D_METHOD("set_stream_manager_path", "path"), &StreamWorldProbe::set_stream_manager_path);
 	ClassDB::bind_method(D_METHOD("get_stream_manager_path"), &StreamWorldProbe::get_stream_manager_path);
 
-	// 绑定内部方法（供引擎回调）
 	ClassDB::bind_method(D_METHOD("_on_visibility_changed"), &StreamWorldProbe::_on_visibility_changed);
-	ClassDB::bind_method(D_METHOD("_connect_manager_signals"), &StreamWorldProbe::_connect_manager_signals);
 
-	// 添加属性到编辑器
 	ADD_PROPERTY(PropertyInfo(Variant::AABB, "aabb"), "set_aabb", "get_aabb");
 	ADD_PROPERTY(PropertyInfo(Variant::NODE_PATH, "stream_manager_path"), "set_stream_manager_path", "get_stream_manager_path");
+}
 
-	// 定义信号（带一个 Object 参数，传递探测器自身）
-	MethodInfo mi_load("load_probe");
-	ADD_SIGNAL(mi_load);
-
-	MethodInfo mi_unload("unload_probe");
-	ADD_SIGNAL(mi_unload);
+void StreamWorldProbe::_resolve_and_cache_manager() {
+	stream_manager_ = nullptr;
+	if (stream_manager_path_.is_empty() || !is_inside_tree())
+		return;
+	if (!has_node(stream_manager_path_))
+		return;
+	stream_manager_ = get_node<StreamManager>(stream_manager_path_);
 }
 
 void StreamWorldProbe::_ready() {
-	// 连接自身的可见性变化信号
-	if (!is_connected("visibility_changed", Callable(this, "_on_visibility_changed"))) {
+	if (!is_connected("visibility_changed", Callable(this, "_on_visibility_changed")))
 		connect("visibility_changed", Callable(this, "_on_visibility_changed"), CONNECT_DEFERRED);
-	}
-	_connect_manager_signals();
 
-	emit_signal("load_probe");
+	_resolve_and_cache_manager();
+	if (stream_manager_)
+		stream_manager_->on_load_probe(this);
 }
 
 void StreamWorldProbe::_enter_tree() {
 	if (is_visible_in_tree()) {
-		emit_signal("load_probe");
+		_resolve_and_cache_manager();
+		if (stream_manager_)
+			stream_manager_->on_load_probe(this);
 	}
 }
 
 void StreamWorldProbe::_exit_tree() {
-	// 离开树时主动发射卸载信号，避免残留
-	if (is_visible_in_tree()) {
-		emit_signal("unload_probe");
-	}
+	if (stream_manager_)
+		stream_manager_->on_unload_probe(this);
+	stream_manager_ = nullptr;
 }
 
 void StreamWorldProbe::_on_visibility_changed() {
-	if (!is_inside_tree()) {
+	if (!is_inside_tree())
 		return;
-	}
 
-	if (is_visible_in_tree()) {
-		emit_signal("load_probe");
-	} else {
-		emit_signal("unload_probe");
-	}
+	_resolve_and_cache_manager();
+	if (!stream_manager_)
+		return;
+
+	if (is_visible_in_tree())
+		stream_manager_->on_load_probe(this);
+	else
+		stream_manager_->on_unload_probe(this);
 }
 
 void StreamWorldProbe::_notification(int p_what) {
-	if (p_what == NOTIFICATION_PREDELETE) {
-		_diconnect_manager_signals();
-	}
+	if (p_what == NOTIFICATION_PREDELETE)
+		stream_manager_ = nullptr;
 }
 
-void StreamWorldProbe::_diconnect_manager_signals() {
-	if(!has_node(stream_manager_path_)) return;
-	auto *manager_node = get_node<StreamManager>(stream_manager_path_);
-	if (!manager_node)
-		return;
-
-	if (is_connected("load_probe", callable_mp(manager_node, &StreamManager::_on_load_probe)))
-		disconnect("load_probe", callable_mp(manager_node, &StreamManager::_on_load_probe));
-
-	if (is_connected("unload_probe", callable_mp(manager_node, &StreamManager::_on_unload_probe)))
-		disconnect("unload_probe", callable_mp(manager_node, &StreamManager::_on_unload_probe));
-}
-
-// 需自己检查 _ready
-void StreamWorldProbe::_connect_manager_signals() {
-	// 若需要与 StreamManager 交互（如监听其销毁、重载事件），可在此实现
-	// 示例：获取管理器节点，检查有效性（不强制要求）
-	if (stream_manager_path_.is_empty() || !is_visible_in_tree() || !is_inside_tree() || !has_node(stream_manager_path_)) {
-		return;
-	}
-
-	auto *manager_node = get_node<StreamManager>(stream_manager_path_);
-	if (!manager_node) {
-		UtilityFunctions::push_warning("StreamWorldProbe: StreamManager not found at path: ", stream_manager_path_);
-		return;
-	}
-	// 连接管理器回调
-	connect("load_probe", callable_mp(manager_node, &StreamManager::_on_load_probe), CONNECT_APPEND_SOURCE_OBJECT );
-	connect("unload_probe", callable_mp(manager_node, &StreamManager::_on_unload_probe), CONNECT_APPEND_SOURCE_OBJECT );
-}
-
-// 属性实现
 void StreamWorldProbe::set_aabb(const AABB &aabb) {
 	aabb_ = aabb;
-	update_gizmos(); // 更新编辑器显示
+	update_gizmos();
 }
 
 AABB StreamWorldProbe::get_aabb() const {
@@ -114,9 +80,9 @@ AABB StreamWorldProbe::get_aabb() const {
 
 void StreamWorldProbe::set_stream_manager_path(NodePath manager) {
 	stream_manager_path_ = manager;
-
-	if(stream_manager_path_.is_empty() && is_visible_in_tree() && is_inside_tree() && has_node(stream_manager_path_) && !get_node<StreamManager>(stream_manager_path_)->is_queued_for_deletion())
-	emit_signal("load_probe");
+	_resolve_and_cache_manager();
+	if (stream_manager_ && is_visible_in_tree() && is_inside_tree())
+		stream_manager_->on_load_probe(this);
 }
 
 NodePath StreamWorldProbe::get_stream_manager_path() const {

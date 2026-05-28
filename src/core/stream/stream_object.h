@@ -21,10 +21,8 @@ class StreamObjectNode : public Node3D {
 	// 用于计算总包围盒的内部节点列表
 	TypedArray<NodePath> aabb_sources; // 历遍配置的子节点路径
 
-	// 延迟信号标志：避免在 _notification 中发射信号（场景树可能不一致）
-	bool aabb_changed_pending_ = false;
-	// 销毁标志：NOTIFICATION_PREDELETE 发送后，禁止 _process 再发射信号
-	bool being_destroyed_ = false;
+	// 直接持有 StreamManager 指针，避免通过信号通信（信号在销毁阶段会崩溃）
+	StreamManager *stream_manager_ = nullptr;
 
 public:
 	// 外部只读访问
@@ -37,10 +35,9 @@ public:
 	// 总包围盒（仅包含自身）
 	AABB get_aabb() const;
 
-	// 节点生命周期钩子（只发信号，不做业务）
+	// 节点生命周期钩子
 	void _enter_tree() override;
 	void _exit_tree() override;
-	void _process(double delta) override;
 	void _notification(int p_what);
 
 protected:

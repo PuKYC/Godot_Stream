@@ -1,4 +1,5 @@
 #include "stream_object.h"
+#include "stream_manager.h"
 
 #include "uuid.h"
 
@@ -31,51 +32,21 @@ static AABB transform_aabb(const AABB &local_aabb, const Transform3D &transform)
 
 void StreamObjectNode::_enter_tree() {
 	set_notify_transform(true);
-	set_process(true); // 启用 _process 回调，用于延迟发射 AABB 变化信号
+
+	// 缓存父节点 StreamManager 指针，后续 AABB 变化直接调用其方法（不走信号）
+	Node *parent = get_parent();
+	if (parent && parent->is_class("StreamManager"))
+		stream_manager_ = Object::cast_to<StreamManager>(parent);
 }
 
 void StreamObjectNode::_exit_tree() {
-	set_notify_transform(false); // ← 离树时立刻停止接收 transform 通知
-	set_process(false);
-	aabb_changed_pending_ = false; // 离开场景树时丢弃未处理的标志
+	set_notify_transform(false);
+	stream_manager_ = nullptr;
 }
 
 void StreamObjectNode::_notification(int p_what) {
-	// 对象即将被销毁：设置标志阻止 _process 发射信号，随后拒绝所有通知
-	if (p_what == NOTIFICATION_PREDELETE) {
-		being_destroyed_ = true;
-		return;
-	}
-
-	// 拒绝在销毁 / 离树阶段处理任何通知
-	if (is_queued_for_deletion() || p_what == NOTIFICATION_EXIT_TREE)
-		return;
-
-	// 仅在节点就绪且处于场景树中时处理
-	if (!is_node_ready() || !is_inside_tree())
-		return;
-
-	if (p_what == NOTIFICATION_TRANSFORM_CHANGED) {
-		aabb_changed_pending_ = true; // 延迟到 _process 发射，避免场景树不一致时崩溃
-	}
-}
-
-void StreamObjectNode::_process(double delta) {
-	// 对象正在销毁：丢弃所有未发射的信号
-	if (being_destroyed_)
-		return;
-
-	if (!aabb_changed_pending_)
-		return;
-	aabb_changed_pending_ = false;
-
-	// 场景树处于稳定状态时安全检查
-	if (is_queued_for_deletion() || !is_inside_tree())
-		return;
-
-	Node *parent = get_parent();
-	if (parent && parent->is_class("StreamManager") && !parent->is_queued_for_deletion())
-		emit_signal("object_aabb_changed");
+	if (p_what == NOTIFICATION_TRANSFORM_CHANGED && stream_manager_)
+		stream_manager_->on_object_aabb_changed(this);
 }
 
 // 仅获取自身aabb 不包括子对象
@@ -133,10 +104,6 @@ void StreamObjectNode::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::ARRAY, "aabb_sources", PROPERTY_HINT_NONE, "",
 						 PROPERTY_USAGE_STORAGE | PROPERTY_USAGE_EDITOR),
 			"set_aabb_sources", "get_aabb_sources");
-
-	MethodInfo object_aabb_changed;
-	object_aabb_changed.name = "object_aabb_changed";
-	ADD_SIGNAL(object_aabb_changed);
 }
 
 void StreamObjectNode::set_uuid_str(const String &id) {

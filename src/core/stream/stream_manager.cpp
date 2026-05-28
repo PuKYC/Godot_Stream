@@ -21,37 +21,6 @@
 
 using namespace godot;
 
-// 断开所有连接到这个对象的信号（即断开所有我作为监听者的连接）
-void disconnect_all_incoming(Node *self) {
-	ERR_FAIL_NULL(self); // Godot 惯用空指针宏，会打印错误并直接返回
-	const TypedArray<Dictionary> &incoming = self->get_incoming_connections();
-
-	for (int i = 0; i < incoming.size(); ++i) {
-		const Dictionary &conn = incoming[i];
-
-		// 提取并校验信号来源
-		Object *source = conn.get("source", nullptr);
-		if (source == nullptr) {
-			WARN_PRINT("disconnect_all_incoming: invalid source in incoming connection, skipping.");
-			continue;
-		}
-
-		// 提取信号名和回调（使用 get 提供默认值，避免异常崩溃）
-		const StringName signal_name = conn.get("signal", StringName());
-		const Callable my_callback = conn.get("callable", Callable());
-
-		if (signal_name == StringName() || !my_callback.is_valid()) {
-			WARN_PRINT(vformat(
-					"disconnect_all_incoming: incomplete connection info (signal: %s, callable valid: %s), skipping.",
-					signal_name, my_callback.is_valid()));
-			continue;
-		}
-
-		// 安全断开
-		source->disconnect(signal_name, my_callback);
-	}
-}
-
 // 构造 析构
 StreamManager::StreamManager() :
 		cache_(16, 32) {
@@ -72,21 +41,17 @@ void StreamManager::_ready() {
 }
 
 void godot::StreamManager::_exit_tree() {
-	// 先断开 child_exiting_tree 信号，防止后续子节点离树时触发 _on_object_exited
-	// （在关闭阶段 _on_object_exited 会尝试提交异步任务，可能访问已析构的 MethodBind）
+	// 断开 child_* 信号，防止关闭阶段子节点离树时触发回调访问已析构资源
+	if (is_connected("child_entered_tree", callable_mp(this, &StreamManager::_on_object_entered)))
+		disconnect("child_entered_tree", callable_mp(this, &StreamManager::_on_object_entered));
 	if (is_connected("child_exiting_tree", callable_mp(this, &StreamManager::_on_object_exited)))
 		disconnect("child_exiting_tree", callable_mp(this, &StreamManager::_on_object_exited));
 
-	disconnect_all_incoming(this);
-
 	object_removal_.clear();
-	dirty_aabb_.clear(); // 节点即将离树，析构时无法再读 AABB
-	to_upsert_uuids_.clear(); // 同理，node_root 引用将失效
+	dirty_aabb_.clear();
+	to_upsert_uuids_.clear();
 
-	// 最后同步：此时 dirty_aabb_ 已清空，不会尝试读取节点 AABB
-	// 仅处理剩余的 upsert/remove 数据
-	_flush_pending_db_ops(); // 最后一次同步
-
+	_flush_pending_db_ops();
 }
 
 void StreamManager::_process(double delta) {
@@ -146,9 +111,7 @@ void StreamManager::_process(double delta) {
 }
 
 void StreamManager::_notification(int p_what) {
-	if (p_what == NOTIFICATION_PREDELETE) {
-		// disconnect_all_incoming(this);
-	}
+	// StreamManager 不再有需要通过 _notification 清理的自定义信号连接
 }
 
 // 数据库初始化
@@ -228,8 +191,6 @@ void StreamManager::add_object(StreamObjectNode *node) {
 
 	to_upsert_uuids_.insert(uuid);
 	dirty_aabb_.insert(uuid);
-
-	_connect_node_signals(node);
 }
 
 void godot::StreamManager::remove_object(const uuids::uuid &uuid) {
@@ -338,20 +299,6 @@ uuids::uuid godot::StreamManager::_generate_uuid() {
 	return uuid_gen();
 }
 
-void StreamManager::_connect_node_signals(StreamObjectNode *node) {
-	// DEBUG: 节点必须有效
-	ERR_FAIL_COND(!node);
-	if (!node->is_connected("object_aabb_changed", callable_mp(this, &StreamManager::_on_object_aabb_changed)))
-		node->connect("object_aabb_changed", callable_mp(this, &StreamManager::_on_object_aabb_changed), CONNECT_APPEND_SOURCE_OBJECT);
-}
-
-void StreamManager::_diconnect_node_signals(StreamObjectNode *node) {
-	// DEBUG: 节点必须有效
-	ERR_FAIL_COND(!node);
-	if (node->is_connected("object_aabb_changed", callable_mp(this, &StreamManager::_on_object_aabb_changed)))
-		node->disconnect("object_aabb_changed", callable_mp(this, &StreamManager::_on_object_aabb_changed));
-}
-
 String StreamManager::_derive_object_dir(const String &db_path) const {
 	String base = db_path.get_base_dir();
 	String name = "." + db_path.get_file().get_basename();
@@ -378,7 +325,6 @@ void StreamManager::_on_object_entered(Node *node) {
 
 	// 否则只需更新引用
 	registry_[uuid].node_root = node->get_instance_id();
-	_connect_node_signals(obj);
 }
 
 // 槽函数
@@ -390,8 +336,6 @@ void StreamManager::_on_object_exited(Node *node) {
 		return;
 	uuids::uuid uuid = obj->get_uuid();
 
-	_diconnect_node_signals(obj);
-
 	if (pending_removal_.count(uuid) || node->is_queued_for_deletion() || is_queued_for_deletion()) {
 		_save_object_to_file(uuid, node);
 		dirty_aabb_.erase(uuid); //.节点退出后不再尝试读 AABB
@@ -402,17 +346,17 @@ void StreamManager::_on_object_exited(Node *node) {
 	remove_object(uuid);
 }
 
-void godot::StreamManager::_on_load_probe(StreamWorldProbe *probe) {
+void godot::StreamManager::on_load_probe(StreamWorldProbe *probe) {
 	ERR_FAIL_COND(!probe);
 	registered_probes_.insert(probe->get_instance_id());
 }
 
-void godot::StreamManager::_on_unload_probe(StreamWorldProbe *probe) {
+void godot::StreamManager::on_unload_probe(StreamWorldProbe *probe) {
 	ERR_FAIL_COND(!probe);
 	registered_probes_.erase(probe->get_instance_id());
 }
 
-void StreamManager::_on_object_aabb_changed(StreamObjectNode *node) {
+void StreamManager::on_object_aabb_changed(StreamObjectNode *node) {
 	ERR_FAIL_COND(!node);
 	uuids::uuid uuid = node->get_uuid();
 	if (registry_.count(uuid)) {
@@ -512,8 +456,6 @@ void StreamManager::_load_object_scene(const uuids::uuid &uuid) {
 	add_child(stream_node, true);
 	stream_node->set_owner(get_owner() ? get_owner() : get_parent());
 	notify_property_list_changed();
-
-	_connect_node_signals(stream_node);
 }
 
 void StreamManager::_unload_object(const uuids::uuid &uuid) {
@@ -723,12 +665,8 @@ void StreamManager::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_database_path"), &StreamManager::get_database_path);
 	ADD_PROPERTY(PropertyInfo(Variant::STRING, "database_path", PROPERTY_HINT_FILE, "*.db"), "set_database_path", "get_database_path");
 
-	// 内部槽注册（供信号连接使用）
 	ClassDB::bind_method(D_METHOD("_on_object_entered"), &StreamManager::_on_object_entered);
 	ClassDB::bind_method(D_METHOD("_on_object_exited"), &StreamManager::_on_object_exited);
-	ClassDB::bind_method(D_METHOD("_on_object_aabb_changed"), &StreamManager::_on_object_aabb_changed);
-	ClassDB::bind_method(D_METHOD("_on_load_probe"), &StreamManager::_on_load_probe);
-	ClassDB::bind_method(D_METHOD("_on_unload_probe"), &StreamManager::_on_unload_probe);
 
 	ClassDB::bind_method(D_METHOD("_async_save_object"), &StreamManager::_async_save_object);
 }

@@ -27,17 +27,18 @@ public:
 	NodePath get_stream_manager_path() const;
 
 	AABB get_global_aabb() const;
+
 protected:
 	void _on_visibility_changed();
-
-	void _diconnect_manager_signals();
-	void _connect_manager_signals();
 
 	static void _bind_methods();
 
 private:
+	void _resolve_and_cache_manager(); // 解析 stream_manager_path_ 并缓存指针
+
 	AABB aabb_;
 	NodePath stream_manager_path_;
+	StreamManager *stream_manager_ = nullptr;
 };
 
 } //namespace godot
