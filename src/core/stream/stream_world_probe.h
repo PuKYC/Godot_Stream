@@ -27,7 +27,6 @@ public:
 	NodePath get_stream_manager_path() const;
 
 	AABB get_global_aabb() const;
-
 protected:
 	void _on_visibility_changed();
 

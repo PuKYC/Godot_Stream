@@ -32,6 +32,7 @@ public:
 	~StreamManager();
 
 	void _ready() override;
+	void _enter_tree() override;
 	void _exit_tree() override;
 	void _process(double delta) override;
 	void _notification(int p_what);

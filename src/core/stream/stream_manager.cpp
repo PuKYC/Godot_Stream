@@ -40,6 +40,11 @@ void StreamManager::_ready() {
 	}
 }
 
+void StreamManager::_enter_tree() {
+	// 恢复 _process（_exit_tree 中 set_process(false) 是持久状态）
+	set_process(true);
+}
+
 void godot::StreamManager::_exit_tree() {
 	// 断开 child_* 信号，防止关闭阶段子节点离树时触发回调访问已析构资源
 	if (is_connected("child_entered_tree", callable_mp(this, &StreamManager::_on_object_entered)))
@@ -47,15 +52,25 @@ void godot::StreamManager::_exit_tree() {
 	if (is_connected("child_exiting_tree", callable_mp(this, &StreamManager::_on_object_exited)))
 		disconnect("child_exiting_tree", callable_mp(this, &StreamManager::_on_object_exited));
 
+	// 停止 _process 回调，阻止后续帧进入加载/卸载逻辑
+	set_process(false);
+
 	object_removal_.clear();
 	dirty_aabb_.clear();
 	to_upsert_uuids_.clear();
+
+	// 清空加载队列，防止关闭阶段残留的异步加载结果触发 add_child
+	load_queue_ = std::queue<uuids::uuid>();
+	loaded_queue_ = std::queue<uuids::uuid>();
 
 	_flush_pending_db_ops();
 }
 
 void StreamManager::_process(double delta) {
-	// FIXME 时机不对
+	// 不在场景树中则不做任何处理（关闭阶段的兜底保护）
+	if (!is_inside_tree())
+		return;
+
 	// 执行删除
 	for (auto uuid : object_removal_) {
 		_remove_object(uuid);
@@ -449,6 +464,12 @@ void StreamManager::_load_object_scene(const uuids::uuid &uuid) {
 		// DEBUG: 获取到的节点不是预期类型，属于严重错误
 		ERR_PRINT("Loaded scene is not a StreamObjectNode: " + scene_path);
 		memdelete(node);
+		return;
+	}
+
+	// 挂载前最后检查：场景树可能已在关闭流程中被销毁
+	if (!is_inside_tree() || is_queued_for_deletion()) {
+		memdelete(stream_node);
 		return;
 	}
 
