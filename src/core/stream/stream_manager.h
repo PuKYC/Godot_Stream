@@ -16,6 +16,7 @@
 
 #include "uuid.h"
 
+#include <atomic>
 #include <memory>
 #include <queue>
 #include <vector>
@@ -63,6 +64,7 @@ private:
 	String database_path_;
 	String object_scene_dir_;
 	uint8_t query_process = 0; // 计数器
+	std::atomic<bool> shutting_down_{ false }; // 关闭标志，防止析构阶段操作场景树
 
 	// 数据库异步工作线程
 	Ref<AsyncDbWorker> db_worker_;

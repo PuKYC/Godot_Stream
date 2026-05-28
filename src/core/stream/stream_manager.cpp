@@ -46,6 +46,9 @@ void StreamManager::_enter_tree() {
 }
 
 void godot::StreamManager::_exit_tree() {
+	// 提前锁定，阻止 _process / _load_object_scene 在后续清理中操作场景树
+	shutting_down_ = true;
+
 	// 断开 child_* 信号，防止关闭阶段子节点离树时触发回调访问已析构资源
 	if (is_connected("child_entered_tree", callable_mp(this, &StreamManager::_on_object_entered)))
 		disconnect("child_entered_tree", callable_mp(this, &StreamManager::_on_object_entered));
@@ -67,8 +70,8 @@ void godot::StreamManager::_exit_tree() {
 }
 
 void StreamManager::_process(double delta) {
-	// 不在场景树中则不做任何处理（关闭阶段的兜底保护）
-	if (!is_inside_tree())
+	// 关闭或不在场景树中则不做任何处理
+	if (shutting_down_ || !is_inside_tree())
 		return;
 
 	// 执行删除
@@ -433,6 +436,10 @@ void StreamManager::_on_query_result(const a_hashmap<uuids::uuid, ObjectData> &d
 }
 
 void StreamManager::_load_object_scene(const uuids::uuid &uuid) {
+	// 关闭阶段不做任何加载，避免 add_child 触发 VkThread 崩溃
+	if (!is_inside_tree() || is_queued_for_deletion() || shutting_down_)
+		return;
+
 	// DEBUG: 加载前确保 UUID 有效且已注册
 	ERR_FAIL_COND(uuid.is_nil());
 	if (!registry_.count(uuid)) {
@@ -464,12 +471,6 @@ void StreamManager::_load_object_scene(const uuids::uuid &uuid) {
 		// DEBUG: 获取到的节点不是预期类型，属于严重错误
 		ERR_PRINT("Loaded scene is not a StreamObjectNode: " + scene_path);
 		memdelete(node);
-		return;
-	}
-
-	// 挂载前最后检查：场景树可能已在关闭流程中被销毁
-	if (!is_inside_tree() || is_queued_for_deletion()) {
-		memdelete(stream_node);
 		return;
 	}
 
@@ -532,17 +533,9 @@ void StreamManager::_save_object_to_file(const uuids::uuid &uuid, Node *node) {
 	String path = _object_scene_path(uuid);
 	ERR_FAIL_COND_MSG(path.is_empty(), "Cannot save object, derived path is empty for UUID: " + String(uuids::to_string(uuid).c_str()));
 
-	// 关闭/卸载阶段：同步保存，避免 callable_mp 在 MethodBind 表析构后悬空
-	if (!is_inside_tree() || is_queued_for_deletion()) {
-		Error err = ResourceSaver::get_singleton()->save(scene, path, ResourceSaver::FLAG_COMPRESS);
-		if (err != OK) {
-			ERR_PRINT("Failed to save scene to " + path);
-		}
-	} else {
-		// 正常运行阶段：异步保存避免主线程卡顿
-		WorkerThreadPool::get_singleton()->add_task(
-				callable_mp(this, &StreamManager::_async_save_object).bind(scene, path));
-	}
+	// 正常运行阶段：异步保存避免主线程卡顿
+	WorkerThreadPool::get_singleton()->add_task(
+			callable_mp(this, &StreamManager::_async_save_object).bind(scene, path));
 }
 
 void godot::StreamManager::_async_save_object(const Ref<godot::PackedScene> scene, String path) {
