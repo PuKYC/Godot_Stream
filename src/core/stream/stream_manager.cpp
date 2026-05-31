@@ -529,7 +529,6 @@ void StreamManager::_unload_object(const uuids::uuid &uuid) {
 			StreamObjectNode *obj_node = Object::cast_to<StreamObjectNode>(
 					ObjectDB::get_instance(data.node_root));
 			if (obj_node) {
-				_save_object_to_file(obj_id, obj_node);
 				remove_child(obj_node);
 				obj_node->set_owner(nullptr);
 				cache_.release(obj_id, obj_node);

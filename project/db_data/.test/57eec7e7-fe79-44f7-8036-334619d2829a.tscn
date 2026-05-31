@@ -1,4 +1,4 @@
-[gd_scene format=3 uid="uid://cbq85g014rlgl"]
+[gd_scene format=3]
 
 [sub_resource type="PrismMesh" id="PrismMesh_ftby4"]
 left_to_right = -0.4

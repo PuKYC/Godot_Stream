@@ -50,19 +50,18 @@ AsyncDbWorker::AsyncDbWorker(const String &db_path, bool read_only) :
 	worker_ = std::thread(&AsyncDbWorker::thread_loop, this);
 }
 
-AsyncDbWorker::~AsyncDbWorker() {
-	{
-		std::lock_guard<std::mutex> lock(queue_mutex_);
-		stop_ = true;
-	}
-	cv_.notify_one();
-	if (worker_.joinable()) {
-		worker_.join();
-	}
-}
-
 void AsyncDbWorker::_notification(int p_what) {
 	if (p_what == NOTIFICATION_PREDELETE) {
+
+		{
+			std::lock_guard<std::mutex> lock(queue_mutex_);
+			stop_ = true;
+		}
+		cv_.notify_one();
+		if (worker_.joinable()) {
+			worker_.join();
+		}
+
 		// 先断开 SceneTree 的连接，防止析构后 callable_mp 悬挂
 		auto *main_loop = Engine::get_singleton()->get_main_loop();
 		SceneTree *tree = Object::cast_to<SceneTree>(main_loop);

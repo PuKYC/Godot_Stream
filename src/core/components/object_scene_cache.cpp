@@ -1,5 +1,6 @@
 #include "object_scene_cache.h"
 #include <godot_cpp/classes/resource_loader.hpp>
+#include <godot_cpp/core/object_id.hpp>
 
 using namespace godot;
 
@@ -30,7 +31,12 @@ Node *ObjectSceneCache::acquire(const uuids::uuid &uuid, const String &scene_pat
 	// 节点缓存优先
 	auto result = node_cache_.TryGet(uuid); // 返回 std::pair<Node*, bool>
 	if (result.second) { // 如果找到了节点
-		return result.first; // 返回节点指针
+		Node *cached = result.first;
+		// 验证缓存节点仍然有效（未被外部释放或已 queue_free 但未清理）
+		if (cached && ObjectDB::get_instance(cached->get_instance_id()) && !cached->is_queued_for_deletion())
+			return cached;
+		// 节点已失效或已被标记删除，从缓存中移除，避免悬挂指针
+		node_cache_.Remove(uuid);
 	}
 
 	// 场景资源缓存命中
@@ -47,8 +53,6 @@ Node *ObjectSceneCache::acquire(const uuids::uuid &uuid, const String &scene_pat
 void ObjectSceneCache::release(const uuids::uuid &uuid, Node *node) {
 	if (!node)
 		return;
-
-	auto old = node_cache_.TryGet(uuid);
 
 	node_cache_.Put(uuid, node);
 }
@@ -94,9 +98,8 @@ void ObjectSceneCache::update() {
 			it = loading_requests_.erase(it);
 		} else if (status == ResourceLoader::ThreadLoadStatus::THREAD_LOAD_FAILED) {
 			loading_set_.erase(it->uuid);
-			it = loading_requests_.erase(it);
 			remove_loading_set_.insert(it->uuid);
-			// 可选错误日志
+			it = loading_requests_.erase(it);
 		} else {
 			++it;
 		}

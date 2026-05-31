@@ -2,4 +2,15 @@
 //
 // For more documentation on how to configure debug tasks,
 // see: https://zed.dev/docs/debugger
-[]
+[
+	{
+		"adapter": "CodeLLDB",
+		"label": "Godot_v4.6.2-stable_linux.arm64 (CodeLLDB)",
+		"request": "launch",
+		"name": "Godot_v4.6.2-stable_linux.arm64 (CodeLLDB)",
+		"program": "../Godot_v4.6.2-stable_linux.arm64",
+		"args": ["--path", "./project", "main.tscn", "--verbose"],
+		"stopOnEntry": false,
+		"cwd": "/home/tiny/Godot_Stream",
+	},
+]

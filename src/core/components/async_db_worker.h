@@ -26,7 +26,7 @@ public:
 
 	AsyncDbWorker() = default;
 	AsyncDbWorker(const godot::String &db_path, bool read_only = false);
-	~AsyncDbWorker();
+	~AsyncDbWorker() = default;
 
 	void _notification(int p_what);
 

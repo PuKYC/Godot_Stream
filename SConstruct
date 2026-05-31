@@ -145,7 +145,7 @@ library = env.SharedLibrary(
 )
 
 copy = env.Install(
-    "{}/addons/wolrdstream/bin/{}/".format(projectdir, env["platform"]), library
+    "{}/addons/worldstream/bin/{}/".format(projectdir, env["platform"]), library
 )
 
 Default(library, copy)
