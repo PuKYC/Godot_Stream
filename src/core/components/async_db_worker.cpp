@@ -50,6 +50,20 @@ AsyncDbWorker::AsyncDbWorker(const String &db_path, bool read_only) :
 	worker_ = std::thread(&AsyncDbWorker::thread_loop, this);
 }
 
+AsyncDbWorker::~AsyncDbWorker() {
+	// 防御性线程清理：确保即使 NOTIFICATION_PREDELETE 未被调用，
+	// 后台线程也会在成员析构前被 join，避免 std::terminate。
+	// 正常路径下 _notification 已 join，此处 joinable() 为 false，无副作用。
+	{
+		std::lock_guard<std::mutex> lock(queue_mutex_);
+		stop_ = true;
+	}
+	cv_.notify_one();
+	if (worker_.joinable()) {
+		worker_.join();
+	}
+}
+
 void AsyncDbWorker::_notification(int p_what) {
 	if (p_what == NOTIFICATION_PREDELETE) {
 
