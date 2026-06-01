@@ -3,6 +3,7 @@
  */
 #include "stream_manager.h"
 #include "core/components/async_db_worker.h"
+#include "core/components/object_scene_cache.h"
 #include "godot_cpp/classes/node.hpp"
 
 #include <chrono>
@@ -46,8 +47,6 @@ void StreamManager::_enter_tree() {
 }
 
 void godot::StreamManager::_exit_tree() {
-	// 提前锁定，阻止 _process / _load_object_scene 在后续清理中操作场景树
-	shutting_down_ = true;
 
 	// 断开 child_* 信号，防止关闭阶段子节点离树时触发回调访问已析构资源
 	if (is_connected("child_entered_tree", callable_mp(this, &StreamManager::_on_object_entered)))
@@ -71,7 +70,7 @@ void godot::StreamManager::_exit_tree() {
 
 void StreamManager::_process(double delta) {
 	// 关闭或不在场景树中则不做任何处理
-	if (shutting_down_ || !is_inside_tree())
+	if (!is_inside_tree())
 		return;
 
 	// 执行删除
@@ -130,8 +129,10 @@ void StreamManager::_process(double delta) {
 
 void StreamManager::_notification(int p_what) {
 	// StreamManager 不再有需要通过 _notification 清理的自定义信号连接
-	if (p_what == NOTIFICATION_PREDELETE)
-		shutting_down_ = true;
+	if (p_what == NOTIFICATION_PREDELETE) {
+		cache_.free_all_node();
+		set_process(false);
+	}
 }
 
 // 数据库初始化

@@ -11,7 +11,7 @@ ObjectSceneCache::ObjectSceneCache(size_t scene_cap, size_t node_cap) :
 	scene_cache_capacity = scene_cap;
 	node_evict_ = [](Node *node) {
 		if (node)
-			node->queue_free();
+			free(node);
 	};
 }
 
@@ -29,14 +29,12 @@ size_t ObjectSceneCache::scene_cache_size() const noexcept {
 
 Node *ObjectSceneCache::acquire(const uuids::uuid &uuid, const String &scene_path) {
 	// 节点缓存优先
-	auto result = node_cache_.TryGet(uuid); // 返回 std::pair<Node*, bool>
+	auto result = node_cache_.Pop(uuid); // 返回 std::pair<Node*, bool>
 	if (result.second) { // 如果找到了节点
 		Node *cached = result.first;
 		// 验证缓存节点仍然有效（未被外部释放或已 queue_free 但未清理）
 		if (cached && ObjectDB::get_instance(cached->get_instance_id()) && !cached->is_queued_for_deletion())
 			return cached;
-		// 节点已失效或已被标记删除，从缓存中移除，避免悬挂指针
-		node_cache_.Remove(uuid);
 	}
 
 	// 场景资源缓存命中
@@ -104,6 +102,11 @@ void ObjectSceneCache::update() {
 			++it;
 		}
 	}
+}
+
+void ObjectSceneCache::free_all_node(){
+	node_cache_.ClearWithCallback();
+	scene_cache_.ClearWithCallback();
 }
 
 bool ObjectSceneCache::is_loading(const uuids::uuid &uuid) const {

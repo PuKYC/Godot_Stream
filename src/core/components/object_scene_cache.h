@@ -47,6 +47,8 @@ public:
 	Ref<PackedScene> get_scene(const uuids::uuid &uuid) const;
 	void remove_scene(const uuids::uuid &uuid);
 
+	void free_all_node();
+
 	// 淘汰回调
 	void set_node_evict_callback(NodeEvictCallback callback);
 
